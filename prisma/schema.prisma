@@ -1,0 +1,79 @@
+// Medflex ProjektHub – Datenmodell
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum ProjectStatus {
+  LAUFEND
+  PAUSIERT
+  ABGESCHLOSSEN
+}
+
+/// Spiegelt einen Supabase-Auth-User (auth.users.id) für App-spezifische Profildaten.
+model User {
+  id        String    @id
+  email     String    @unique
+  name      String
+  role      String    @default("Manager")
+  projects  Project[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Project {
+  id         String          @id @default(cuid())
+  name       String
+  status     ProjectStatus   @default(LAUFEND)
+  /// Hex-Farbe aus der Projekt-Palette (Badges, Gantt, Kalender)
+  color      String
+  ownerId    String
+  owner      User            @relation(fields: [ownerId], references: [id])
+  /// Startdatum, sobald "Projekt berechnen" ausgeführt wurde
+  startDate  DateTime?
+  /// = letztes Schedule-Step-Enddatum minus 1 Monat
+  deadline   DateTime?
+  calculated Boolean         @default(false)
+  steps      ScheduleStep[]
+  checklist  ChecklistItem[]
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([ownerId])
+}
+
+/// Berechneter Schritt aus dem 22-Schritte-Ablauf (Stabsübergabe → Monitoring-Besprechung)
+model ScheduleStep {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  /// Reihenfolge gemäss scheduleSteps-Definition (0-21)
+  order     Int
+  startDate DateTime
+  endDate   DateTime
+
+  @@index([projectId])
+  @@index([startDate, endDate])
+}
+
+/// Punkt der 34-teiligen Checkliste je Projekt
+model ChecklistItem {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  label     String
+  checked   Boolean  @default(false)
+  /// Reihenfolge in der Checkliste (bestimmt Timeline-Phase via PHASE_BOUNDS)
+  order     Int
+
+  @@index([projectId])
+}

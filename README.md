@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Medflex ProjektHub
 
-## Getting Started
+Modulare Projektmanagement-Plattform der Medflex Schweiz AG.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Next.js (App Router) + TypeScript + Tailwind CSS + shadcn/ui
+- Prisma ORM + PostgreSQL (Supabase)
+- Supabase Auth (E-Mail/Passwort + Google OAuth)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Abhängigkeiten installieren:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+   ```bash
+   npm install
+   ```
 
-## Learn More
+2. `.env` ausfüllen (Werte aus dem Supabase-Projekt, Project Settings → API
+   bzw. Database):
 
-To learn more about Next.js, take a look at the following resources:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=
+   DATABASE_URL=        # Pooled connection, Port 6543
+   DIRECT_URL=          # Direkte Verbindung, Port 5432 (für Migrationen)
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3. In Supabase: Google OAuth Provider aktivieren (Authentication → Providers)
+   und Redirect-URL `http://localhost:3000/auth/callback` (bzw. die
+   Produktions-URL) hinterlegen.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+4. Datenbankschema anlegen + Beispieldaten einspielen:
 
-## Deploy on Vercel
+   ```bash
+   npm run db:migrate
+   npm run db:seed
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+5. Dev-Server starten:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+   ```bash
+   npm run dev
+   ```
+
+## Modul "Projektplanung"
+
+- **Übersicht** (`/projektplanung/uebersicht`) – Projektliste, Suche, Status-Filter,
+  Projekt anlegen
+- **Projektdetail** (`/projektplanung/projekte/[id]`) – Zeitplan berechnen
+  (Werktage Mo–Fr, Sa/So werden übersprungen), Timeline, Checkliste (34 Punkte)
+- **Zeitplan** (`/projektplanung/zeitplan`) – Gantt-artige Übersicht der
+  22 Schedule-Schritte je Projekt
+- **Kalender** (`/projektplanung/kalender`) – Monatsansicht (nur Mo–Fr),
+  Projekt-Filter, "+N weitere"-Popup bei Überlappung
+- **Benutzerkonto** (`/projektplanung/konto`) – Profil, Logout
+
+Die Schedule-Engine (22-Schritte-Ablauf, Werktagsberechnung, Checklisten-/
+Timeline-Logik) liegt in [`src/lib/schedule.ts`](src/lib/schedule.ts) und wird
+sowohl vom Seed-Script als auch von den Server Actions
+([`src/app/projektplanung/actions.ts`](src/app/projektplanung/actions.ts))
+verwendet.
