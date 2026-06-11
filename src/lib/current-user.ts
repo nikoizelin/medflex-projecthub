@@ -14,15 +14,16 @@ export async function getCurrentUser() {
 
   if (!user) return null;
 
+  const existing = await prisma.user.findUnique({ where: { id: user.id } });
+  if (existing) return existing;
+
   const name =
     (user.user_metadata?.name as string | undefined) ??
     user.email?.split("@")[0] ??
     "Unbekannt";
 
-  return prisma.user.upsert({
-    where: { id: user.id },
-    update: { email: user.email ?? "" },
-    create: {
+  return prisma.user.create({
+    data: {
       id: user.id,
       email: user.email ?? "",
       name,
