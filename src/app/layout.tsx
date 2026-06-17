@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Medflex ProjektHub",
+  title: "MedFlex ProjektHub",
   description: "Modulare Projektmanagement-Plattform der Medflex Schweiz AG",
 };
 

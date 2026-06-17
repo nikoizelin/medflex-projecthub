@@ -18,6 +18,12 @@ enum ProjectStatus {
   ABGESCHLOSSEN
 }
 
+enum TicketStatus {
+  NEU
+  IN_PROGRESS
+  DONE
+}
+
 /// Spiegelt einen Supabase-Auth-User (auth.users.id) für App-spezifische Profildaten.
 model User {
   id        String    @id
@@ -25,27 +31,29 @@ model User {
   name      String
   role      String    @default("Manager")
   projects  Project[]
+  tickets   Ticket[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 }
 
 model Project {
-  id         String          @id @default(cuid())
-  name       String
-  status     ProjectStatus   @default(LAUFEND)
+  id            String          @id @default(cuid())
+  name          String
+  status        ProjectStatus   @default(LAUFEND)
   /// Hex-Farbe aus der Projekt-Palette (Badges, Gantt, Kalender)
-  color      String
-  ownerId    String
-  owner      User            @relation(fields: [ownerId], references: [id])
+  color         String
+  ownerId       String
+  owner         User            @relation(fields: [ownerId], references: [id])
   /// Startdatum, sobald "Projekt berechnen" ausgeführt wurde
-  startDate  DateTime?
+  startDate     DateTime?
   /// = letztes Schedule-Step-Enddatum minus 1 Monat
-  deadline   DateTime?
-  calculated Boolean         @default(false)
-  steps      ScheduleStep[]
-  checklist  ChecklistItem[]
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  deadline      DateTime?
+  calculated    Boolean         @default(false)
+  steps         ScheduleStep[]
+  checklist     ChecklistItem[]
+  testingEntries TestingEntry[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   @@index([ownerId])
 }
@@ -65,6 +73,21 @@ model ScheduleStep {
   @@index([startDate, endDate])
 }
 
+/// Ticket im Ticketboard (Spalten: Neu, In Progress, Done)
+model Ticket {
+  id          String       @id @default(cuid())
+  title       String
+  description String       @default("")
+  status      TicketStatus @default(NEU)
+  creatorId   String
+  creator     User         @relation(fields: [creatorId], references: [id])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([creatorId])
+  @@index([status])
+}
+
 /// Punkt der 34-teiligen Checkliste je Projekt
 model ChecklistItem {
   id        String   @id @default(cuid())
@@ -72,8 +95,26 @@ model ChecklistItem {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   label     String
   checked   Boolean  @default(false)
-  /// Reihenfolge in der Checkliste (bestimmt Timeline-Phase via PHASE_BOUNDS)
+  /// Reihenfolge in der Checkliste (bestimmte Punkte lösen via PHASE_TRIGGER_ORDERS Timeline-Phasen aus)
   order     Int
+
+  @@index([projectId])
+}
+
+/// Eintrag im Testing-Protokoll eines Projekts
+model TestingEntry {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  /// Link zur Anfrage
+  link        String   @default("")
+  /// Fehlerhaftes Verhalten
+  issue       String   @default("")
+  comment     String   @default("")
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([projectId])
 }

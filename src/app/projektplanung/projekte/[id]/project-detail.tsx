@@ -1,11 +1,12 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { CalendarRange, FlaskConical, ListChecks, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { PALETTE, PHASE_NAMES, getActivePhaseIndex } from "@/lib/schedule";
 import {
@@ -14,6 +15,7 @@ import {
   addChecklistItem,
   updateProject,
 } from "../../actions";
+import { TestingProtocol, type TestingEntry } from "./testing-protocol";
 
 type ProjectStatus = "LAUFEND" | "PAUSIERT" | "ABGESCHLOSSEN";
 
@@ -39,6 +41,7 @@ interface ChecklistItem {
   id: string;
   label: string;
   checked: boolean;
+  order: number;
 }
 
 interface Project {
@@ -51,6 +54,7 @@ interface Project {
   deadline: string | null;
   calculated: boolean;
   checklist: ChecklistItem[];
+  testingEntries: TestingEntry[];
 }
 
 export function ProjectDetail({ project }: { project: Project }) {
@@ -58,7 +62,6 @@ export function ProjectDetail({ project }: { project: Project }) {
     project.startDate ? project.startDate.slice(0, 10) : ""
   );
   const [newItem, setNewItem] = useState("");
-  const [showAll, setShowAll] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [isEditingName, setIsEditingName] = useState(false);
   const [name, setName] = useState(project.name);
@@ -83,9 +86,14 @@ export function ProjectDetail({ project }: { project: Project }) {
   const total = checklist.length;
   const checkedCount = checklist.filter((c) => c.checked).length;
   const progress = total > 0 ? Math.round((checkedCount / total) * 100) : 0;
-  const activePhase = getActivePhaseIndex(checkedCount, total);
+  const activePhase = getActivePhaseIndex(checklist);
 
-  const visibleItems = showAll ? checklist : checklist.slice(0, 8);
+  const allChecked = total > 0 && checkedCount === total;
+  const displayStatus: ProjectStatus = allChecked
+    ? "ABGESCHLOSSEN"
+    : project.status === "ABGESCHLOSSEN"
+      ? "LAUFEND"
+      : project.status;
 
   return (
     <div>
@@ -153,133 +161,163 @@ export function ProjectDetail({ project }: { project: Project }) {
             Verantwortlich: {project.ownerName}
           </p>
         </div>
-        <span className={cn("inline-flex h-5 items-center rounded-full px-2 text-xs font-medium", STATUS_BADGE_CLASS[project.status])}>
-          {STATUS_LABEL[project.status]}
+        <span className={cn("inline-flex h-5 items-center rounded-full px-2 text-xs font-medium", STATUS_BADGE_CLASS[displayStatus])}>
+          {STATUS_LABEL[displayStatus]}
           {project.calculated ? ` · ${progress}%` : ""}
         </span>
       </div>
 
-      <div className="mb-4 rounded-lg border bg-background p-3.5">
-        <p className="mb-2.5 text-sm font-medium">Zeitplan berechnen</p>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="w-44"
-          />
-          <Button
-            disabled={!startDate || isPending}
-            onClick={() =>
-              startTransition(() => calculateProject(project.id, startDate))
-            }
-          >
-            {project.calculated ? "Neu berechnen" : "Projekt berechnen"}
-          </Button>
-          {project.calculated && project.deadline && (
-            <p className="ml-auto text-xs text-muted-foreground">
-              Deadline:{" "}
-              <span className="font-medium text-foreground">
-                {dateFormatter.format(new Date(project.deadline))}
-              </span>
-            </p>
-          )}
-        </div>
-        {!project.calculated && (
-          <p className="mt-2.5 text-xs text-muted-foreground">
-            Noch nicht berechnet – Startdatum wählen und auf &quot;Projekt
-            berechnen&quot; klicken, um Zeitplan, Kalender-Einträge und
-            Deadline zu erzeugen. Wochenenden (Sa/So) werden bei der
-            Berechnung übersprungen.
-          </p>
-        )}
-      </div>
+      <Tabs defaultValue="zeitplan">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="zeitplan">
+            <CalendarRange className="size-4" />
+            Zeitplan
+          </TabsTrigger>
+          <TabsTrigger value="checkliste">
+            <ListChecks className="size-4" />
+            Checkliste
+          </TabsTrigger>
+          <TabsTrigger value="testing">
+            <FlaskConical className="size-4" />
+            Testing
+          </TabsTrigger>
+        </TabsList>
 
-      {project.calculated && (
-        <div className="mb-4">
-          <p className="mb-2 text-sm font-medium">Timeline</p>
-          <div className="mb-1.5 flex items-center">
-            {PHASE_NAMES.map((_, i) => (
-              <div key={i} className="flex flex-1 items-center last:flex-none">
-                <div
-                  className={cn(
-                    "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs",
-                    i < activePhase && "border-transparent bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-                    i === activePhase && "border-transparent bg-blue-500/15 font-medium text-blue-600 dark:text-blue-400",
-                    i > activePhase && "text-muted-foreground"
-                  )}
-                >
-                  {i + 1}
-                </div>
-                {i < PHASE_NAMES.length - 1 && (
-                  <div className={cn("h-0.5 flex-1", i < activePhase ? "bg-emerald-500" : "bg-border")} />
-                )}
+        <TabsContent value="zeitplan" className="mt-3.5 flex flex-col gap-3.5">
+          <div className="rounded-lg border bg-background p-3.5">
+            <p className="mb-2.5 text-sm font-medium">Zeitplan berechnen</p>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-44"
+              />
+              <Button
+                disabled={!startDate || isPending}
+                onClick={() =>
+                  startTransition(() => calculateProject(project.id, startDate))
+                }
+              >
+                {project.calculated ? "Neu berechnen" : "Projekt berechnen"}
+              </Button>
+              {project.calculated && project.deadline && (
+                <p className="ml-auto text-xs text-muted-foreground">
+                  Deadline:{" "}
+                  <span className="font-medium text-foreground">
+                    {dateFormatter.format(new Date(project.deadline))}
+                  </span>
+                </p>
+              )}
+            </div>
+            {!project.calculated && (
+              <p className="mt-2.5 text-xs text-muted-foreground">
+                Noch nicht berechnet – Startdatum wählen und auf &quot;Projekt
+                berechnen&quot; klicken, um Zeitplan, Kalender-Einträge und
+                Deadline zu erzeugen. Wochenenden (Sa/So) werden bei der
+                Berechnung übersprungen.
+              </p>
+            )}
+          </div>
+
+          {project.calculated && (
+            <div className="rounded-lg border bg-background p-3.5">
+              <p className="mb-3 text-sm font-medium">Timeline</p>
+              <div className="mb-1.5 flex items-center">
+                {PHASE_NAMES.map((_, i) => (
+                  <div key={i} className="flex flex-1 items-center last:flex-none">
+                    <div
+                      className={cn(
+                        "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs",
+                        i < activePhase && "border-transparent bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+                        i === activePhase && "border-transparent bg-blue-500/15 font-medium text-blue-600 dark:text-blue-400",
+                        i > activePhase && "text-muted-foreground"
+                      )}
+                    >
+                      {i + 1}
+                    </div>
+                    {i < PHASE_NAMES.length - 1 && (
+                      <div className={cn("h-0.5 flex-1", i < activePhase ? "bg-emerald-500" : "bg-border")} />
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="flex justify-between text-xs text-muted-foreground">
-            {PHASE_NAMES.map((name) => (
-              <span key={name}>{name}</span>
-            ))}
-          </div>
-        </div>
-      )}
+              <div className="flex justify-between text-xs text-muted-foreground">
+                {PHASE_NAMES.map((name) => (
+                  <span key={name}>{name}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </TabsContent>
 
-      <p className="mb-2 text-sm font-medium">Checkliste</p>
-      <div className="flex flex-col gap-1.5 text-sm">
-        {visibleItems.map((item) => (
-          <label key={item.id} className="flex cursor-pointer items-center gap-2">
-            <Checkbox
-              checked={item.checked}
-              onCheckedChange={(checked) => {
-                const isChecked = checked === true;
-                startTransition(async () => {
-                  applyOptimisticChecklist({ type: "toggle", id: item.id, checked: isChecked });
-                  await toggleChecklistItem(item.id, project.id, isChecked);
-                });
-              }}
+        <TabsContent value="checkliste" className="mt-3.5">
+          <div className="rounded-lg border bg-background p-3.5">
+            <div className="mb-2.5 flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">Checkliste</p>
+              <span className="text-xs text-muted-foreground">
+                {checkedCount}/{total} erledigt
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5 text-sm">
+              {checklist.map((item) => (
+                <label key={item.id} className="flex cursor-pointer items-center gap-2">
+                  <Checkbox
+                    checked={item.checked}
+                    onCheckedChange={(checked) => {
+                      const isChecked = checked === true;
+                      startTransition(async () => {
+                        applyOptimisticChecklist({ type: "toggle", id: item.id, checked: isChecked });
+                        await toggleChecklistItem(item.id, project.id, isChecked);
+                      });
+                    }}
+                  />
+                  <span className={item.checked ? "text-muted-foreground line-through" : ""}>
+                    {item.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-2.5 flex gap-2">
+              <Input
+                placeholder="Eigenen Punkt hinzufügen..."
+                value={newItem}
+                onChange={(e) => setNewItem(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={() => {
+                  const value = newItem.trim();
+                  if (!value) return;
+                  setNewItem("");
+                  startTransition(async () => {
+                    applyOptimisticChecklist({
+                      type: "add",
+                      item: { id: `temp-${Date.now()}`, label: value, checked: false, order: total },
+                    });
+                    await addChecklistItem(project.id, value);
+                  });
+                }}
+              >
+                <Plus className="size-4" />
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="testing" className="mt-3.5">
+          <div className="rounded-lg border bg-background p-3.5">
+            <TestingProtocol
+              projectId={project.id}
+              projectName={project.name}
+              entries={project.testingEntries}
             />
-            <span className={item.checked ? "text-muted-foreground line-through" : ""}>
-              {item.label}
-            </span>
-          </label>
-        ))}
-      </div>
-
-      <div className="mt-2.5 flex gap-2">
-        <Input
-          placeholder="Eigenen Punkt hinzufügen..."
-          value={newItem}
-          onChange={(e) => setNewItem(e.target.value)}
-          className="flex-1"
-        />
-        <Button
-          size="icon"
-          variant="outline"
-          onClick={() => {
-            const value = newItem.trim();
-            if (!value) return;
-            setNewItem("");
-            startTransition(async () => {
-              applyOptimisticChecklist({
-                type: "add",
-                item: { id: `temp-${Date.now()}`, label: value, checked: false },
-              });
-              await addChecklistItem(project.id, value);
-            });
-          }}
-        >
-          <Plus className="size-4" />
-        </Button>
-      </div>
-
-      <Button
-        variant="link"
-        className="mt-2.5 h-auto p-0 text-xs"
-        onClick={() => setShowAll((v) => !v)}
-      >
-        {showAll ? "Weniger anzeigen" : `Alle ${total} Punkte anzeigen`}
-      </Button>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

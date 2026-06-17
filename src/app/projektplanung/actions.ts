@@ -98,6 +98,29 @@ export async function calculateProject(projectId: string, startDate: string) {
   revalidatePath(`/projektplanung/projekte/${projectId}`);
 }
 
+async function syncProjectStatusToChecklist(projectId: string) {
+  const [items, project] = await Promise.all([
+    prisma.checklistItem.findMany({ where: { projectId }, select: { checked: true } }),
+    prisma.project.findUnique({ where: { id: projectId }, select: { status: true } }),
+  ]);
+
+  if (!project) return;
+
+  const allChecked = items.length > 0 && items.every((i) => i.checked);
+
+  if (allChecked && project.status !== "ABGESCHLOSSEN") {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "ABGESCHLOSSEN" },
+    });
+  } else if (!allChecked && project.status === "ABGESCHLOSSEN") {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "LAUFEND" },
+    });
+  }
+}
+
 export async function toggleChecklistItem(
   itemId: string,
   projectId: string,
@@ -107,6 +130,8 @@ export async function toggleChecklistItem(
     where: { id: itemId },
     data: { checked },
   });
+
+  await syncProjectStatusToChecklist(projectId);
 
   revalidatePath("/projektplanung/uebersicht");
   revalidatePath(`/projektplanung/projekte/${projectId}`);
@@ -120,6 +145,58 @@ export async function addChecklistItem(projectId: string, label: string) {
   await prisma.checklistItem.create({
     data: { projectId, label: trimmed, order: count, checked: false },
   });
+
+  await syncProjectStatusToChecklist(projectId);
+
+  revalidatePath("/projektplanung/uebersicht");
+  revalidatePath(`/projektplanung/projekte/${projectId}`);
+}
+
+export async function createTestingEntry(
+  projectId: string,
+  data: { title: string; link: string; issue: string; comment: string }
+) {
+  const title = data.title.trim();
+  if (!title) return;
+
+  const count = await prisma.testingEntry.count({ where: { projectId } });
+  await prisma.testingEntry.create({
+    data: {
+      projectId,
+      title,
+      link: data.link.trim(),
+      issue: data.issue.trim(),
+      comment: data.comment.trim(),
+      order: count,
+    },
+  });
+
+  revalidatePath(`/projektplanung/projekte/${projectId}`);
+}
+
+export async function updateTestingEntry(
+  entryId: string,
+  projectId: string,
+  data: { title: string; link: string; issue: string; comment: string }
+) {
+  const title = data.title.trim();
+  if (!title) return;
+
+  await prisma.testingEntry.update({
+    where: { id: entryId },
+    data: {
+      title,
+      link: data.link.trim(),
+      issue: data.issue.trim(),
+      comment: data.comment.trim(),
+    },
+  });
+
+  revalidatePath(`/projektplanung/projekte/${projectId}`);
+}
+
+export async function deleteTestingEntry(entryId: string, projectId: string) {
+  await prisma.testingEntry.delete({ where: { id: entryId } });
 
   revalidatePath(`/projektplanung/projekte/${projectId}`);
 }

@@ -8,17 +8,31 @@ import {
   ListChecks,
   Clock,
   Calendar,
-  User,
+  KanbanSquare,
 } from "lucide-react";
 
-const projektplanungNav = [
-  { href: "/projektplanung/uebersicht", label: "Übersicht", icon: ListChecks },
-  { href: "/projektplanung/zeitplan", label: "Zeitplan", icon: Clock },
-  { href: "/projektplanung/kalender", label: "Kalender", icon: Calendar },
+const navSections = [
+  {
+    prefix: "/projektplanung",
+    label: "Projektplanung",
+    items: [
+      { href: "/projektplanung/uebersicht", label: "Übersicht", icon: ListChecks },
+      { href: "/projektplanung/zeitplan", label: "Zeitplan", icon: Clock },
+      { href: "/projektplanung/kalender", label: "Kalender", icon: Calendar },
+    ],
+  },
+  {
+    prefix: "/ticketsystem",
+    label: "Ticketsystem",
+    items: [
+      { href: "/ticketsystem/board", label: "Board", icon: KanbanSquare },
+    ],
+  },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const section = navSections.find((s) => pathname.startsWith(s.prefix));
 
   return (
     <aside className="flex w-46 shrink-0 flex-col gap-0.5 border-r bg-muted/30 p-2.5">
@@ -34,16 +48,20 @@ export function AppSidebar() {
 
       <NavLink href="/dashboard" label="Module" icon={LayoutGrid} active={pathname === "/dashboard"} />
 
-      <p className="mb-1 mt-3 px-2 text-xs text-muted-foreground">Projektplanung</p>
-      {projektplanungNav.map((item) => (
-        <NavLink
-          key={item.href}
-          href={item.href}
-          label={item.label}
-          icon={item.icon}
-          active={pathname.startsWith(item.href)}
-        />
-      ))}
+      {section && (
+        <>
+          <p className="mb-1 mt-3 px-2 text-xs text-muted-foreground">{section.label}</p>
+          {section.items.map((item) => (
+            <NavLink
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              icon={item.icon}
+              active={pathname.startsWith(item.href)}
+            />
+          ))}
+        </>
+      )}
     </aside>
   );
 }

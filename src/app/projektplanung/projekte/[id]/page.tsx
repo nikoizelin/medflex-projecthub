@@ -13,9 +13,23 @@ export default async function ProjectDetailPage({
 
   const project = await prisma.project.findUnique({
     where: { id },
-    include: {
-      owner: true,
-      checklist: { orderBy: { order: "asc" } },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      color: true,
+      startDate: true,
+      deadline: true,
+      calculated: true,
+      owner: { select: { name: true } },
+      checklist: {
+        select: { id: true, label: true, checked: true, order: true },
+        orderBy: { order: "asc" },
+      },
+      testingEntries: {
+        select: { id: true, title: true, link: true, issue: true, comment: true },
+        orderBy: { order: "asc" },
+      },
     },
   });
 
@@ -45,6 +59,14 @@ export default async function ProjectDetailPage({
             id: c.id,
             label: c.label,
             checked: c.checked,
+            order: c.order,
+          })),
+          testingEntries: project.testingEntries.map((t) => ({
+            id: t.id,
+            title: t.title,
+            link: t.link,
+            issue: t.issue,
+            comment: t.comment,
           })),
         }}
       />

@@ -44,6 +44,7 @@ interface ProjectListItem {
   ownerName: string;
   calculated: boolean;
   progress: number;
+  phaseLabel: string;
 }
 
 const STATUS_LABEL: Record<ProjectStatus, string> = {
@@ -56,6 +57,11 @@ const STATUS_BADGE_CLASS: Record<ProjectStatus, string> = {
   LAUFEND: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
   PAUSIERT: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
   ABGESCHLOSSEN: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+};
+
+const STATUS_FILTER_LABEL: Record<"alle" | ProjectStatus, string> = {
+  alle: "Alle Status",
+  ...STATUS_LABEL,
 };
 
 export function ProjectOverview({ projects }: { projects: ProjectListItem[] }) {
@@ -118,7 +124,7 @@ export function ProjectOverview({ projects }: { projects: ProjectListItem[] }) {
         </div>
         <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
           <SelectTrigger className="w-36">
-            <SelectValue />
+            <SelectValue>{STATUS_FILTER_LABEL[status]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="alle">Alle Status</SelectItem>
@@ -150,7 +156,7 @@ export function ProjectOverview({ projects }: { projects: ProjectListItem[] }) {
                 <p className="text-sm font-medium">{p.name}</p>
               </div>
               <p className="mb-2 text-xs text-muted-foreground">
-                {p.calculated ? "Phase: in Bearbeitung" : "Noch nicht berechnet"}
+                {p.calculated ? `Phase: ${p.phaseLabel}` : "Noch nicht berechnet"}
               </p>
               <span
                 className={`inline-flex h-5 items-center rounded-full px-2 text-xs font-medium ${STATUS_BADGE_CLASS[p.status]}`}

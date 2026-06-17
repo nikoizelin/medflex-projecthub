@@ -57,7 +57,7 @@ export function ZeitplanView({ projects }: { projects: Project[] }) {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Select value={project.id} onValueChange={(v) => v && setSelectedId(v)}>
           <SelectTrigger className="w-55">
-            <SelectValue />
+            <SelectValue>{project.name}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {projects.map((p) => (

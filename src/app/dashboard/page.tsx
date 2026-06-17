@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ListChecks, ChartBar } from "lucide-react";
+import { ListChecks, ChartBar, KanbanSquare } from "lucide-react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppTopbar } from "@/components/app-topbar";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,30 @@ export default async function DashboardPage() {
               </p>
             </Link>
 
+            <Link
+              href="/ticketsystem/board"
+              className="rounded-lg border bg-background p-3.5 transition-colors hover:border-foreground/20"
+            >
+              <KanbanSquare className="size-6 text-primary" />
+              <p className="mt-2.5 text-sm font-medium">Ticketsystem</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Tickets &amp; Board
+              </p>
+            </Link>
+
+            <div className="relative rounded-lg border bg-background p-3.5 opacity-55">
+              <Badge
+                variant="secondary"
+                className="absolute right-2.5 top-2.5 text-[10px]"
+              >
+                Bald verfügbar
+              </Badge>
+              <ChartBar className="size-6 text-muted-foreground" />
+              <p className="mt-2.5 text-sm font-medium">Online Rezeption</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Chat mit Textbausteinen
+              </p>
+            </div>
             <div className="relative rounded-lg border bg-background p-3.5 opacity-55">
               <Badge
                 variant="secondary"

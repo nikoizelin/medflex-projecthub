@@ -77,7 +77,7 @@ export function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
-/** Der 22-Schritte-Ablauf: Stabsübergabe → Monitoring-Besprechung */
+/** Der 20-Schritte-Ablauf: Stabsübergabe → Finales Go-Live */
 export const scheduleSteps: ScheduleStepDefinition[] = [
   { name: "Stabsübergabe", dur: 0 },
   { name: "Infobogen & Samples senden", dur: 0 },
@@ -99,8 +99,6 @@ export const scheduleSteps: ScheduleStepDefinition[] = [
   { name: "Zweites Go-Live", gap: 3, dur: 0 },
   { name: "Drittes Go-Live", gap: 3, dur: 1 },
   { name: "Finales Go-Live", gap: 1, dur: 0 },
-  { name: "Monitoring", dur: 30 },
-  { name: "Monitoring-Besprechung", dur: 0 },
 ];
 
 /** Berechnet alle 22 Schedule-Steps ausgehend vom gewählten Startdatum. */
@@ -185,12 +183,33 @@ export const PHASE_NAMES = [
   "Monitoring",
 ] as const;
 
-/** Kumulative Grenzen (von 34) je Phase */
-export const PHASE_BOUNDS_BASE = [6, 11, 17, 22, 28, 34] as const;
+/**
+ * `order`-Werte (Index in `baseChecklist`) der Checklisten-Punkte, die den
+ * Übergang in die jeweils nächste Phase auslösen. `null` für die erste Phase,
+ * die immer aktiv startet.
+ *
+ * - Setup: "Account erstellt" (order 2)
+ * - Entwicklung: "Kick-off durchgeführt" (order 7)
+ * - Schulung: "Schulung geplant" (order 13)
+ * - Go-Live: "Besprechung TA-Tests" (order 26)
+ * - Monitoring: "Finales Go-Live" (order 30)
+ */
+export const PHASE_TRIGGER_ORDERS: (number | null)[] = [null, 2, 7, 13, 26, 30];
 
-/** Ermittelt den Index der aktiven Phase anhand der Anzahl erledigter Checklisten-Punkte. */
-export function getActivePhaseIndex(checkedCount: number, total: number): number {
-  const bounds = PHASE_BOUNDS_BASE.map((b) => Math.round((b / 34) * total));
-  const activeIdx = bounds.findIndex((b) => checkedCount < b);
-  return activeIdx === -1 ? PHASE_NAMES.length : activeIdx;
+/**
+ * Ermittelt den Index der aktiven Phase anhand der abgehakten Checklisten-Punkte
+ * (gebunden an feste `order`-Werte, unabhängig von der Gesamtzahl der Punkte).
+ */
+export function getActivePhaseIndex(
+  checklist: { order: number; checked: boolean }[]
+): number {
+  let active = 0;
+  for (let i = PHASE_TRIGGER_ORDERS.length - 1; i >= 1; i--) {
+    const triggerOrder = PHASE_TRIGGER_ORDERS[i];
+    if (triggerOrder !== null && checklist.some((c) => c.order === triggerOrder && c.checked)) {
+      active = i;
+      break;
+    }
+  }
+  return active;
 }

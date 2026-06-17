@@ -4,7 +4,15 @@ import { ZeitplanView } from "./zeitplan-view";
 export default async function ZeitplanPage() {
   const projects = await prisma.project.findMany({
     where: { calculated: true },
-    include: { steps: { orderBy: { order: "asc" } } },
+    select: {
+      id: true,
+      name: true,
+      color: true,
+      steps: {
+        select: { name: true, startDate: true, endDate: true },
+        orderBy: { order: "asc" },
+      },
+    },
     orderBy: { createdAt: "asc" },
   });
 

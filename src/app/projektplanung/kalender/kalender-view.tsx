@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { isWeekend, stripTime, isSameDay } from "@/lib/schedule";
 
 const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr"];
-const MAX_VISIBLE = 3;
+const MAX_VISIBLE = 2;
 
 interface Step {
   name: string;
@@ -44,6 +44,8 @@ export function KalenderView({ projects }: { projects: Project[] }) {
 
   const selectedProjects =
     filter === "all" ? projects : projects.filter((p) => p.id === filter);
+  const filterLabel =
+    filter === "all" ? "Alle Projekte" : projects.find((p) => p.id === filter)?.name ?? "Alle Projekte";
 
   const cells = useMemo(() => {
     const firstDay = new Date(currentMonth);
@@ -74,7 +76,7 @@ export function KalenderView({ projects }: { projects: Project[] }) {
   }, [currentMonth, selectedProjects]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto pb-3.5">
       <div className="mb-3 flex items-center gap-2">
         <Button variant="outline" size="icon" onClick={() => setCurrentMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}>
           <ChevronLeft className="size-4" />
@@ -92,7 +94,7 @@ export function KalenderView({ projects }: { projects: Project[] }) {
 
       <Select value={filter} onValueChange={(v) => v && setFilter(v)}>
         <SelectTrigger className="mb-3 w-46">
-          <SelectValue />
+          <SelectValue>{filterLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Alle Projekte</SelectItem>
@@ -112,9 +114,8 @@ export function KalenderView({ projects }: { projects: Project[] }) {
         ))}
       </div>
 
-      <div className="grid flex-1 grid-cols-5 grid-rows-6 gap-1.5">
+      <div className="grid grid-cols-5 auto-rows-[8.5rem] gap-1.5">
         {cells.map(({ date, entries }, i) => {
-          const colIdx = i % 5;
           const isToday = isSameDay(date, today);
           const isOtherMonth = date.getMonth() !== currentMonth.getMonth();
           const visible = entries.slice(0, MAX_VISIBLE);
@@ -124,7 +125,7 @@ export function KalenderView({ projects }: { projects: Project[] }) {
             <div
               key={i}
               className={cn(
-                "flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg border bg-card p-2",
+                "relative z-0 flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg border bg-card p-2 has-[.group:hover]:z-30 has-[.group:hover]:overflow-visible",
                 isToday && "ring-1 ring-blue-500/40",
                 isOtherMonth && "opacity-40"
               )}
@@ -158,13 +159,13 @@ export function KalenderView({ projects }: { projects: Project[] }) {
                 ))}
               </div>
               {rest.length > 0 && (
-                <div className="group/more relative mt-auto text-[11px] font-medium text-muted-foreground">
+                <div className="group relative mt-auto text-[11px] font-medium text-muted-foreground">
                   <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 hover:bg-accent">
                     +{rest.length} weitere
                   </span>
                   <div
                     className={cn(
-                      "absolute bottom-0 z-20 hidden min-w-48 flex-col gap-1 rounded-lg border bg-popover p-1.5 shadow-md group-hover/more:flex right-0",
+                      "absolute bottom-0 right-0 z-20 hidden min-w-48 flex-col gap-1 rounded-lg border bg-popover p-1.5 shadow-md group-hover:flex",
                     )}
                   >
                     {rest.map((e, j) => (
