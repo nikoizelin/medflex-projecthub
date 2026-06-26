@@ -1,4 +1,4 @@
-import { Mail, Shield, Moon, LogOut } from "lucide-react";
+import { Mail, Shield, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/current-user";

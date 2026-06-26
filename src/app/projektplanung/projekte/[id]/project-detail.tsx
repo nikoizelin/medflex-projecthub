@@ -16,6 +16,7 @@ import {
   updateProject,
 } from "../../actions";
 import { TestingProtocol, type TestingEntry } from "./testing-protocol";
+import { ProjectComments, type ProjectComment } from "./project-comments";
 
 type ProjectStatus = "LAUFEND" | "PAUSIERT" | "ABGESCHLOSSEN";
 
@@ -55,9 +56,18 @@ interface Project {
   calculated: boolean;
   checklist: ChecklistItem[];
   testingEntries: TestingEntry[];
+  comments: ProjectComment[];
 }
 
-export function ProjectDetail({ project }: { project: Project }) {
+export function ProjectDetail({
+  project,
+  currentUserId,
+  currentUserName,
+}: {
+  project: Project;
+  currentUserId: string;
+  currentUserName: string;
+}) {
   const [startDate, setStartDate] = useState(
     project.startDate ? project.startDate.slice(0, 10) : ""
   );
@@ -318,6 +328,13 @@ export function ProjectDetail({ project }: { project: Project }) {
           </div>
         </TabsContent>
       </Tabs>
+
+      <ProjectComments
+        projectId={project.id}
+        comments={project.comments}
+        currentUserId={currentUserId}
+        currentUserName={currentUserName}
+      />
     </div>
   );
 }

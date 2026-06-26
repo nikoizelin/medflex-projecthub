@@ -1,7 +1,7 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,7 +44,14 @@ interface Ticket {
   description: string;
   status: TicketStatus;
   creatorName: string;
+  assigneeId: string | null;
+  assigneeName: string | null;
   createdAt: string;
+}
+
+interface UserOption {
+  id: string;
+  name: string;
 }
 
 const COLUMNS: { status: TicketStatus; label: string; dot: string; badge: string }[] = [
@@ -66,14 +73,16 @@ const dateFormatter = new Intl.DateTimeFormat("de-CH", {
 
 type Action =
   | { type: "status"; id: string; status: TicketStatus }
-  | { type: "update"; id: string; title: string; description: string }
+  | { type: "update"; id: string; title: string; description: string; assigneeId: string | null; assigneeName: string | null }
   | { type: "delete"; id: string };
 
-export function TicketBoard({ tickets }: { tickets: Ticket[] }) {
+export function TicketBoard({ tickets, users }: { tickets: Ticket[]; users: UserOption[] }) {
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [dragOverCol, setDragOverCol] = useState<TicketStatus | null>(null);
+  const [search, setSearch] = useState("");
+  const [assigneeFilter, setAssigneeFilter] = useState("alle");
   const [, startTransition] = useTransition();
 
   const [optimisticTickets, applyOptimistic] = useOptimistic(
@@ -84,13 +93,38 @@ export function TicketBoard({ tickets }: { tickets: Ticket[] }) {
           return state.map((t) => (t.id === action.id ? { ...t, status: action.status } : t));
         case "update":
           return state.map((t) =>
-            t.id === action.id ? { ...t, title: action.title, description: action.description } : t
+            t.id === action.id
+              ? {
+                  ...t,
+                  title: action.title,
+                  description: action.description,
+                  assigneeId: action.assigneeId,
+                  assigneeName: action.assigneeName,
+                }
+              : t
           );
         case "delete":
           return state.filter((t) => t.id !== action.id);
       }
     }
   );
+
+  const filteredTickets = useMemo(() => {
+    return optimisticTickets.filter((t) => {
+      if (
+        search &&
+        !t.title.toLowerCase().includes(search.toLowerCase()) &&
+        !t.description.toLowerCase().includes(search.toLowerCase())
+      ) {
+        return false;
+      }
+      if (assigneeFilter === "unzugewiesen" && t.assigneeId) return false;
+      if (assigneeFilter !== "alle" && assigneeFilter !== "unzugewiesen" && t.assigneeId !== assigneeFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [optimisticTickets, search, assigneeFilter]);
 
   const selected = selectedId ? optimisticTickets.find((t) => t.id === selectedId) ?? null : null;
 
@@ -108,7 +142,37 @@ export function TicketBoard({ tickets }: { tickets: Ticket[] }) {
 
   return (
     <div>
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative max-w-70 flex-1">
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Tickets durchsuchen..."
+            className="pl-8"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <Select value={assigneeFilter} onValueChange={(v) => v && setAssigneeFilter(v)}>
+          <SelectTrigger className="w-44">
+            <SelectValue>
+              {assigneeFilter === "alle"
+                ? "Alle Mitarbeiter"
+                : assigneeFilter === "unzugewiesen"
+                  ? "Unzugewiesen"
+                  : users.find((u) => u.id === assigneeFilter)?.name ?? "Alle Mitarbeiter"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="alle">Alle Mitarbeiter</SelectItem>
+            <SelectItem value="unzugewiesen">Unzugewiesen</SelectItem>
+            {users.map((u) => (
+              <SelectItem key={u.id} value={u.id}>
+                {u.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex-1" />
         <Dialog open={open} onOpenChange={setOpen}>
           <Button onClick={() => setOpen(true)}>
             <Plus className="size-4" />
@@ -138,6 +202,22 @@ export function TicketBoard({ tickets }: { tickets: Ticket[] }) {
                   rows={4}
                 />
               </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="assigneeId">Zugewiesen an</Label>
+                <select
+                  id="assigneeId"
+                  name="assigneeId"
+                  defaultValue=""
+                  className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <option value="">Niemand</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <DialogFooter>
                 <DialogClose render={<Button type="button" variant="outline" />}>
                   Abbrechen
@@ -151,7 +231,7 @@ export function TicketBoard({ tickets }: { tickets: Ticket[] }) {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {COLUMNS.map((col) => {
-          const items = optimisticTickets.filter((t) => t.status === col.status);
+          const items = filteredTickets.filter((t) => t.status === col.status);
           return (
             <div key={col.status} className="flex flex-col gap-2.5">
               <div className="flex items-center gap-2">
@@ -204,6 +284,11 @@ export function TicketBoard({ tickets }: { tickets: Ticket[] }) {
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       {ticket.creatorName} · {dateFormatter.format(new Date(ticket.createdAt))}
                     </p>
+                    {ticket.assigneeName && (
+                      <span className="mt-0.5 inline-flex w-fit items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground">
+                        {ticket.assigneeName}
+                      </span>
+                    )}
                   </button>
                 ))}
                 {items.length === 0 && (
@@ -225,11 +310,19 @@ export function TicketBoard({ tickets }: { tickets: Ticket[] }) {
                 action={async (formData) => {
                   const title = String(formData.get("title") ?? "").trim();
                   const description = String(formData.get("description") ?? "").trim();
+                  const assigneeId = String(formData.get("assigneeId") ?? "").trim() || null;
                   if (!title) return;
                   setIsEditing(false);
                   startTransition(async () => {
-                    applyOptimistic({ type: "update", id: selected.id, title, description });
-                    await updateTicket(selected.id, { title, description });
+                    applyOptimistic({
+                      type: "update",
+                      id: selected.id,
+                      title,
+                      description,
+                      assigneeId,
+                      assigneeName: users.find((u) => u.id === assigneeId)?.name ?? null,
+                    });
+                    await updateTicket(selected.id, { title, description, assigneeId });
                   });
                 }}
                 className="flex min-w-0 flex-col gap-3"
@@ -250,6 +343,22 @@ export function TicketBoard({ tickets }: { tickets: Ticket[] }) {
                     rows={4}
                   />
                 </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-assigneeId">Zugewiesen an</Label>
+                  <select
+                    id="edit-assigneeId"
+                    name="assigneeId"
+                    defaultValue={selected.assigneeId ?? ""}
+                    className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <option value="">Niemand</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
                     Abbrechen
@@ -264,6 +373,7 @@ export function TicketBoard({ tickets }: { tickets: Ticket[] }) {
                   <DialogDescription>
                     Erstellt von {selected.creatorName} am{" "}
                     {dateFormatter.format(new Date(selected.createdAt))}
+                    {selected.assigneeName && <> · Zugewiesen an {selected.assigneeName}</>}
                   </DialogDescription>
                 </DialogHeader>
 

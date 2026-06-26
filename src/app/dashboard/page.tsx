@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ListChecks, ChartBar, KanbanSquare } from "lucide-react";
+import { ListChecks, ChartBar, KanbanSquare, TrendingUp } from "lucide-react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppTopbar } from "@/components/app-topbar";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +57,17 @@ export default async function DashboardPage() {
                 Chat mit Textbausteinen
               </p>
             </div>
+            <Link
+              href="/statistik/uebersicht"
+              className="rounded-lg border bg-background p-3.5 transition-colors hover:border-foreground/20"
+            >
+              <ChartBar className="size-6 text-primary" />
+              <p className="mt-2.5 text-sm font-medium">Statistik Builder</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Auswertungen &amp; Reports
+              </p>
+            </Link>
+
             <div className="relative rounded-lg border bg-background p-3.5 opacity-55">
               <Badge
                 variant="secondary"
@@ -64,10 +75,10 @@ export default async function DashboardPage() {
               >
                 Bald verfügbar
               </Badge>
-              <ChartBar className="size-6 text-muted-foreground" />
-              <p className="mt-2.5 text-sm font-medium">Statistik Builder</p>
+              <TrendingUp className="size-6 text-muted-foreground" />
+              <p className="mt-2.5 text-sm font-medium">Sales</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Auswertungen &amp; Reports
+                Leads &amp; Abschlüsse
               </p>
             </div>
           </div>

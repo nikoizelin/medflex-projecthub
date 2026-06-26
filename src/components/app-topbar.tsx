@@ -22,7 +22,7 @@ export function AppTopbar({
     <header className="flex items-center gap-3 border-b px-4 py-2.5">
       <p className="flex-1 text-sm font-medium">{title}</p>
       <ThemeToggle />
-      <Link href="/projektplanung/konto">
+      <Link href="/konto">
         <Avatar className="size-7 transition-opacity hover:opacity-80">
           <AvatarFallback className="text-xs font-medium">
             {initials(userName)}

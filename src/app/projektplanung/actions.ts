@@ -200,3 +200,28 @@ export async function deleteTestingEntry(entryId: string, projectId: string) {
 
   revalidatePath(`/projektplanung/projekte/${projectId}`);
 }
+
+export async function createProjectComment(projectId: string, message: string) {
+  const trimmed = message.trim();
+  if (!trimmed) return;
+
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  await prisma.projectComment.create({
+    data: { projectId, authorId: user.id, message: trimmed },
+  });
+
+  revalidatePath(`/projektplanung/projekte/${projectId}`);
+}
+
+export async function deleteProjectComment(commentId: string, projectId: string) {
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  await prisma.projectComment.deleteMany({
+    where: { id: commentId, authorId: user.id },
+  });
+
+  revalidatePath(`/projektplanung/projekte/${projectId}`);
+}

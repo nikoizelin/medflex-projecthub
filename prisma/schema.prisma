@@ -26,14 +26,17 @@ enum TicketStatus {
 
 /// Spiegelt einen Supabase-Auth-User (auth.users.id) für App-spezifische Profildaten.
 model User {
-  id        String    @id
-  email     String    @unique
-  name      String
-  role      String    @default("Manager")
-  projects  Project[]
-  tickets   Ticket[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String       @id
+  email       String       @unique
+  name        String
+  role        String       @default("Manager")
+  projects        Project[]
+  tickets         Ticket[]         @relation("TicketCreator")
+  assignedTickets Ticket[]         @relation("TicketAssignee")
+  statReports     StatReport[]
+  comments        ProjectComment[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 }
 
 model Project {
@@ -52,6 +55,7 @@ model Project {
   steps         ScheduleStep[]
   checklist     ChecklistItem[]
   testingEntries TestingEntry[]
+  comments      ProjectComment[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
@@ -80,11 +84,14 @@ model Ticket {
   description String       @default("")
   status      TicketStatus @default(NEU)
   creatorId   String
-  creator     User         @relation(fields: [creatorId], references: [id])
+  creator     User         @relation("TicketCreator", fields: [creatorId], references: [id])
+  assigneeId  String?
+  assignee    User?        @relation("TicketAssignee", fields: [assigneeId], references: [id])
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   @@index([creatorId])
+  @@index([assigneeId])
   @@index([status])
 }
 
@@ -97,6 +104,60 @@ model ChecklistItem {
   checked   Boolean  @default(false)
   /// Reihenfolge in der Checkliste (bestimmte Punkte lösen via PHASE_TRIGGER_ORDERS Timeline-Phasen aus)
   order     Int
+
+  @@index([projectId])
+}
+
+/// Statistik-Builder: ein Kunden-Report mit Kennzahlen + Tabellen-Daten für die Dashboard-Charts
+model StatReport {
+  id      String @id @default(cuid())
+  /// Kundenname
+  title   String
+  /// Datum bzw. Zeitraum, z. B. "Mai 2026" oder "01.05.–31.05.2026"
+  period  String @default("")
+
+  callCount         Int    @default(0)
+  writtenCount      Int    @default(0)
+  forwardCount      Int    @default(0)
+  /// z. B. "4:32 min"
+  avgCallDuration   String @default("")
+  /// z. B. "10:00–11:00 Uhr"
+  popularCallTime   String @default("")
+
+  /// [{ month, minutes }]
+  callDurationByMonth Json @default("[]")
+  /// [{ status: "vollständig" | "unvollständig" | "abgebrochen", count }]
+  statusBreakdown     Json @default("[]")
+  /// [{ label, percent }]
+  topTags             Json @default("[]")
+  /// [{ weekday, count }] Mo–So
+  requestsByWeekday   Json @default("[]")
+  /// [{ month, count }]
+  requestsByMonth     Json @default("[]")
+  /// [{ channel, count }] Telefon/Chat/Kontaktseite
+  requestsByChannel   Json @default("[]")
+  /// [{ hour, count }] 0–23
+  requestsByHour      Json @default("[]")
+  /// [{ label, count }]
+  requestsByDay       Json @default("[]")
+
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
+/// Kommentar in der Projekt-Kommentarspalte (Projektinformationen & Details)
+model ProjectComment {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  message   String
+  createdAt DateTime @default(now())
 
   @@index([projectId])
 }

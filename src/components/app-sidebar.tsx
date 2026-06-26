@@ -9,6 +9,7 @@ import {
   Clock,
   Calendar,
   KanbanSquare,
+  ChartBar,
 } from "lucide-react";
 
 const navSections = [
@@ -26,6 +27,13 @@ const navSections = [
     label: "Ticketsystem",
     items: [
       { href: "/ticketsystem/board", label: "Board", icon: KanbanSquare },
+    ],
+  },
+  {
+    prefix: "/statistik",
+    label: "Statistik Builder",
+    items: [
+      { href: "/statistik/uebersicht", label: "Reports", icon: ChartBar },
     ],
   },
 ];

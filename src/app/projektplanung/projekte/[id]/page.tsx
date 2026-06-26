@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/current-user";
 import { ProjectDetail } from "./project-detail";
 
 export default async function ProjectDetailPage({
@@ -10,6 +11,7 @@ export default async function ProjectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const currentUser = await getCurrentUser();
 
   const project = await prisma.project.findUnique({
     where: { id },
@@ -29,6 +31,16 @@ export default async function ProjectDetailPage({
       testingEntries: {
         select: { id: true, title: true, link: true, issue: true, comment: true },
         orderBy: { order: "asc" },
+      },
+      comments: {
+        select: {
+          id: true,
+          message: true,
+          createdAt: true,
+          authorId: true,
+          author: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
       },
     },
   });
@@ -68,7 +80,16 @@ export default async function ProjectDetailPage({
             issue: t.issue,
             comment: t.comment,
           })),
+          comments: project.comments.map((c) => ({
+            id: c.id,
+            message: c.message,
+            createdAt: c.createdAt.toISOString(),
+            authorId: c.authorId,
+            authorName: c.author.name,
+          })),
         }}
+        currentUserId={currentUser?.id ?? ""}
+        currentUserName={currentUser?.name ?? "Unbekannt"}
       />
     </div>
   );
