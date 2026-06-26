@@ -259,6 +259,13 @@ export function ProjectDetail({
               </div>
             </div>
           )}
+
+          <ProjectComments
+            projectId={project.id}
+            comments={project.comments}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+          />
         </TabsContent>
 
         <TabsContent value="checkliste" className="mt-3.5">
@@ -328,13 +335,6 @@ export function ProjectDetail({
           </div>
         </TabsContent>
       </Tabs>
-
-      <ProjectComments
-        projectId={project.id}
-        comments={project.comments}
-        currentUserId={currentUserId}
-        currentUserName={currentUserName}
-      />
     </div>
   );
 }
