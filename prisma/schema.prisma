@@ -24,6 +24,12 @@ enum TicketStatus {
   DONE
 }
 
+enum TicketPriority {
+  HOCH
+  MITTEL
+  NIEDRIG
+}
+
 /// Spiegelt einen Supabase-Auth-User (auth.users.id) für App-spezifische Profildaten.
 model User {
   id          String       @id
@@ -35,6 +41,7 @@ model User {
   assignedTickets Ticket[]         @relation("TicketAssignee")
   statReports     StatReport[]
   comments        ProjectComment[]
+  ticketComments  TicketComment[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -79,20 +86,35 @@ model ScheduleStep {
 
 /// Ticket im Ticketboard (Spalten: Neu, In Progress, Done)
 model Ticket {
-  id          String       @id @default(cuid())
+  id          String         @id @default(cuid())
   title       String
-  description String       @default("")
-  status      TicketStatus @default(NEU)
+  description String         @default("")
+  status      TicketStatus   @default(NEU)
+  priority    TicketPriority @default(MITTEL)
   creatorId   String
-  creator     User         @relation("TicketCreator", fields: [creatorId], references: [id])
+  creator     User           @relation("TicketCreator", fields: [creatorId], references: [id])
   assigneeId  String?
-  assignee    User?        @relation("TicketAssignee", fields: [assigneeId], references: [id])
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  assignee    User?          @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  ticketComments TicketComment[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@index([creatorId])
   @@index([assigneeId])
   @@index([status])
+}
+
+/// Kommentar innerhalb eines Tickets
+model TicketComment {
+  id        String   @id @default(cuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
 }
 
 /// Punkt der 34-teiligen Checkliste je Projekt
