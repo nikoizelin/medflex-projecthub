@@ -1,0 +1,333 @@
+"use client";
+
+import { useMemo, useOptimistic, useState, useTransition } from "react";
+import { ChevronDown, ChevronUp, ExternalLink, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import { updateChangeRequestStatus } from "../actions";
+
+interface Anfrage {
+  id: string;
+  kontaktperson: string;
+  praxisKunde: string;
+  datum: string;
+  prioritaet: string;
+  beschreibungProblem: string;
+  linkAnfrage: string;
+  fehlerhaftesVerhalten: string;
+  erwartesVerhalten: string;
+  status: string;
+  createdAt: string;
+}
+
+const PRIORITY_BADGE: Record<string, string> = {
+  kritisch: "bg-red-500/10 text-red-700 dark:text-red-400",
+  hoch: "bg-orange-500/10 text-orange-700 dark:text-orange-400",
+  mittel: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  niedrig: "bg-slate-200/60 text-slate-600 dark:text-slate-400",
+};
+
+const PRIORITY_LABEL: Record<string, string> = {
+  kritisch: "Kritisch",
+  hoch: "Hoch",
+  mittel: "Mittel",
+  niedrig: "Niedrig",
+};
+
+const STATUS_BADGE: Record<string, string> = {
+  offen: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
+  "in Bearbeitung": "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  erledigt: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+};
+
+const STATUS_OPTIONS = ["offen", "in Bearbeitung", "erledigt"];
+
+const dateFormatter = new Intl.DateTimeFormat("de-CH", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+const dateTimeFormatter = new Intl.DateTimeFormat("de-CH", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+type SortKey = "createdAt" | "datum" | "praxisKunde" | "prioritaet" | "status";
+type SortDir = "asc" | "desc";
+
+const PRIORITY_ORDER: Record<string, number> = { kritisch: 0, hoch: 1, mittel: 2, niedrig: 3 };
+const STATUS_ORDER: Record<string, number> = { offen: 0, "in Bearbeitung": 1, erledigt: 2 };
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  if (!value) return null;
+  return (
+    <div className="grid grid-cols-[140px_1fr] gap-3 border-t py-2.5 first:border-t-0">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="whitespace-pre-wrap text-sm">{value}</p>
+    </div>
+  );
+}
+
+export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("alle");
+  const [priorityFilter, setPriorityFilter] = useState("alle");
+  const [sortKey, setSortKey] = useState<SortKey>("createdAt");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+
+  const [optimistic, applyOptimistic] = useOptimistic(
+    anfragen,
+    (state: Anfrage[], { id, status }: { id: string; status: string }) =>
+      state.map((a) => (a.id === id ? { ...a, status } : a))
+  );
+
+  const changeStatus = (id: string, status: string) => {
+    startTransition(async () => {
+      applyOptimistic({ id, status });
+      await updateChangeRequestStatus(id, status);
+    });
+  };
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const filtered = useMemo(() => {
+    let result = optimistic.filter((a) => {
+      if (
+        search &&
+        !a.kontaktperson.toLowerCase().includes(search.toLowerCase()) &&
+        !a.praxisKunde.toLowerCase().includes(search.toLowerCase()) &&
+        !a.beschreibungProblem.toLowerCase().includes(search.toLowerCase())
+      )
+        return false;
+      if (statusFilter !== "alle" && a.status !== statusFilter) return false;
+      if (priorityFilter !== "alle" && a.prioritaet !== priorityFilter) return false;
+      return true;
+    });
+
+    result = [...result].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "createdAt") cmp = a.createdAt.localeCompare(b.createdAt);
+      else if (sortKey === "datum") cmp = a.datum.localeCompare(b.datum);
+      else if (sortKey === "praxisKunde") cmp = a.praxisKunde.localeCompare(b.praxisKunde);
+      else if (sortKey === "prioritaet") cmp = (PRIORITY_ORDER[a.prioritaet] ?? 9) - (PRIORITY_ORDER[b.prioritaet] ?? 9);
+      else if (sortKey === "status") cmp = (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return result;
+  }, [optimistic, search, statusFilter, priorityFilter, sortKey, sortDir]);
+
+  const selected = selectedId ? optimistic.find((a) => a.id === selectedId) ?? null : null;
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return null;
+    return sortDir === "asc" ? (
+      <ChevronUp className="size-3.5 text-foreground" />
+    ) : (
+      <ChevronDown className="size-3.5 text-foreground" />
+    );
+  }
+
+  function Th({ col, label }: { col: SortKey; label: string }) {
+    return (
+      <th
+        className="cursor-pointer select-none whitespace-nowrap px-3 py-2.5 text-left text-xs font-medium text-muted-foreground hover:text-foreground"
+        onClick={() => handleSort(col)}
+      >
+        <span className="inline-flex items-center gap-1">
+          {label}
+          <SortIcon col={col} />
+        </span>
+      </th>
+    );
+  }
+
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative max-w-72 flex-1">
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Suchen…"
+            className="pl-8"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v)}>
+          <SelectTrigger className="w-44">
+            <SelectValue>
+              {statusFilter === "alle" ? "Alle Status" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="alle">Alle Status</SelectItem>
+            {STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={priorityFilter} onValueChange={(v) => v && setPriorityFilter(v)}>
+          <SelectTrigger className="w-36">
+            <SelectValue>
+              {priorityFilter === "alle" ? "Alle Prioritäten" : PRIORITY_LABEL[priorityFilter] ?? priorityFilter}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="alle">Alle Prioritäten</SelectItem>
+            {Object.entries(PRIORITY_LABEL).map(([v, l]) => (
+              <SelectItem key={v} value={v}>{l}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="ml-auto text-xs text-muted-foreground">{filtered.length} Einträge</p>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="rounded-lg border bg-background py-16 text-center">
+          <p className="text-sm text-muted-foreground">Keine Anfragen gefunden.</p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border bg-background">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-muted/30">
+                <tr>
+                  <Th col="datum" label="Datum" />
+                  <Th col="praxisKunde" label="Praxis / Kunde" />
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Kontakt</th>
+                  <Th col="prioritaet" label="Priorität" />
+                  <Th col="status" label="Status" />
+                  <Th col="createdAt" label="Eingegangen" />
+                  <th className="px-3 py-2.5" />
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filtered.map((a) => (
+                  <tr
+                    key={a.id}
+                    className="cursor-pointer transition-colors hover:bg-muted/20"
+                    onClick={() => setSelectedId(a.id)}
+                  >
+                    <td className="whitespace-nowrap px-3 py-2.5 text-sm">
+                      {dateFormatter.format(new Date(a.datum + "T00:00:00"))}
+                    </td>
+                    <td className="max-w-[180px] truncate px-3 py-2.5 font-medium">{a.praxisKunde || "—"}</td>
+                    <td className="max-w-[140px] truncate px-3 py-2.5 text-muted-foreground">{a.kontaktperson || "—"}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", PRIORITY_BADGE[a.prioritaet] ?? "bg-muted text-muted-foreground")}>
+                        {PRIORITY_LABEL[a.prioritaet] ?? a.prioritaet}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <Select value={a.status} onValueChange={(v) => v && changeStatus(a.id, v)}>
+                        <SelectTrigger className={cn("h-7 w-36 border-0 bg-transparent px-2 text-xs font-medium shadow-none focus:ring-0", STATUS_BADGE[a.status] ?? "")}>
+                          <SelectValue>{a.status.charAt(0).toUpperCase() + a.status.slice(1)}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STATUS_OPTIONS.map((s) => (
+                            <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-xs text-muted-foreground">
+                      {dateTimeFormatter.format(new Date(a.createdAt))}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedId(a.id); }}>
+                        Details
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <Dialog open={!!selected} onOpenChange={(v) => !v && setSelectedId(null)}>
+        {selected && (
+          <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="wrap-anywhere">{selected.praxisKunde || "Anfrage"}</DialogTitle>
+              <DialogDescription>
+                {selected.kontaktperson && <>{selected.kontaktperson} · </>}
+                Eingegangen {dateTimeFormatter.format(new Date(selected.createdAt))}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", PRIORITY_BADGE[selected.prioritaet] ?? "bg-muted text-muted-foreground")}>
+                {PRIORITY_LABEL[selected.prioritaet] ?? selected.prioritaet}
+              </span>
+              <Select value={selected.status} onValueChange={(v) => v && changeStatus(selected.id, v)}>
+                <SelectTrigger className={cn("h-7 w-auto border px-2.5 text-xs font-medium", STATUS_BADGE[selected.status] ?? "")}>
+                  <SelectValue>{selected.status.charAt(0).toUpperCase() + selected.status.slice(1)}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((s) => (
+                    <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="rounded-lg border bg-muted/20 px-4 py-1">
+              <DetailRow label="Kontaktperson" value={selected.kontaktperson} />
+              <DetailRow label="Praxis / Kunde" value={selected.praxisKunde} />
+              <DetailRow label="Datum" value={dateFormatter.format(new Date(selected.datum + "T00:00:00"))} />
+              <DetailRow label="Beschreibung" value={selected.beschreibungProblem} />
+              <DetailRow label="Fehlerhaftes Verhalten" value={selected.fehlerhaftesVerhalten} />
+              <DetailRow label="Erwartetes Verhalten" value={selected.erwartesVerhalten} />
+              {selected.linkAnfrage && (
+                <div className="grid grid-cols-[140px_1fr] gap-3 border-t py-2.5">
+                  <p className="text-xs font-medium text-muted-foreground">Link</p>
+                  <a
+                    href={selected.linkAnfrage}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {selected.linkAnfrage}
+                    <ExternalLink className="size-3" />
+                  </a>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
+    </>
+  );
+}

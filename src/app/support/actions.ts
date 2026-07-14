@@ -13,6 +13,12 @@ export interface ChangeRequestEntry {
   erwartesVerhalten: string;
 }
 
+export async function updateChangeRequestStatus(id: string, status: string) {
+  await prisma.changeRequest.update({ where: { id }, data: { status } });
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath("/support/anfragen");
+}
+
 export async function submitChangeRequests(entries: ChangeRequestEntry[]) {
   if (!entries.length) return;
 

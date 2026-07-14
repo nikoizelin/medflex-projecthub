@@ -10,6 +10,7 @@ import {
   Calendar,
   KanbanSquare,
   ChartBar,
+  Inbox,
 } from "lucide-react";
 
 const navSections = [
@@ -34,6 +35,13 @@ const navSections = [
     label: "Statistik Builder",
     items: [
       { href: "/statistik/uebersicht", label: "Reports", icon: ChartBar },
+    ],
+  },
+  {
+    prefix: "/support/anfragen",
+    label: "Support",
+    items: [
+      { href: "/support/anfragen", label: "Anfragen", icon: Inbox },
     ],
   },
 ];
