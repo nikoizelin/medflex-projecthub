@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useOptimistic, useState, useTransition } from "react";
-import { ChevronDown, ChevronUp, ExternalLink, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, ExternalLink, FileDown, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -94,7 +94,23 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [, startTransition] = useTransition();
+
+  const publicUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/support/neue-anfrage`
+    : "/support/neue-anfrage";
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(publicUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const exportDocx = async () => {
+    const { generateChangeRequestDocx } = await import("../docx-export");
+    await generateChangeRequestDocx(filtered);
+  };
 
   const [optimistic, applyOptimistic] = useOptimistic(
     anfragen,
@@ -172,6 +188,18 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
 
   return (
     <>
+      {/* Kundenlink-Box */}
+      <div className="mb-4 flex items-center gap-2 rounded-lg border bg-muted/30 px-3.5 py-2.5">
+        <div className="min-w-0 flex-1">
+          <p className="mb-0.5 text-xs font-medium text-muted-foreground">Kundenformular-Link</p>
+          <p className="truncate text-sm font-mono text-foreground">{publicUrl}</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={copyLink} className="shrink-0">
+          {copied ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+          {copied ? "Kopiert" : "Kopieren"}
+        </Button>
+      </div>
+
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="relative max-w-72 flex-1">
           <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -209,6 +237,10 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
           </SelectContent>
         </Select>
         <p className="ml-auto text-xs text-muted-foreground">{filtered.length} Einträge</p>
+        <Button type="button" variant="outline" size="sm" onClick={exportDocx} disabled={filtered.length === 0}>
+          <FileDown className="size-4" />
+          Word exportieren
+        </Button>
       </div>
 
       {filtered.length === 0 ? (

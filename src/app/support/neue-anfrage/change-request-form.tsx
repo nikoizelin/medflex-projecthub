@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CheckCircle2, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -76,11 +76,6 @@ export function ChangeRequestForm() {
       setSubmitted(true);
       setEntries([emptyEntry()]);
     });
-  };
-
-  const handleExportDocx = async () => {
-    const { generateChangeRequestDocx } = await import("./docx-export");
-    await generateChangeRequestDocx(entries);
   };
 
   if (submitted) {
@@ -234,15 +229,7 @@ export function ChangeRequestForm() {
         Weiterer Eintrag
       </Button>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleExportDocx}
-        >
-          <FileDown className="size-4" />
-          Als Word-Dokument exportieren
-        </Button>
+      <div className="flex justify-end">
         <Button type="submit" disabled={isPending}>
           {isPending ? (
             <>

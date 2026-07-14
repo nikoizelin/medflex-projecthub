@@ -14,7 +14,7 @@ import {
   PageBreak,
 } from "docx";
 import { saveAs } from "file-saver";
-import type { ChangeRequestEntry } from "../actions";
+import type { ChangeRequestEntry } from "./actions";
 
 const BRAND = "#064b91";
 const LABEL_BG = "F1F5F9"; // slate-100 hex without #
