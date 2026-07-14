@@ -39,7 +39,7 @@ const PRIORITY_BADGE: Record<string, string> = {
   kritisch: "bg-red-500/10 text-red-700 dark:text-red-400",
   hoch: "bg-orange-500/10 text-orange-700 dark:text-orange-400",
   mittel: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-  niedrig: "bg-slate-200/60 text-slate-600 dark:text-slate-400",
+  niedrig: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
 };
 
 const PRIORITY_LABEL: Record<string, string> = {
