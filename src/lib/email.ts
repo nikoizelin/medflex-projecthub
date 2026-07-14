@@ -2,7 +2,7 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM = "MedFlex ProjektHub <onboarding@resend.dev>";
+const FROM = "MedFlex ProjektHub <no-reply@medflex-schweiz.ch>";
 
 export async function sendTicketAssignmentEmail({
   to,

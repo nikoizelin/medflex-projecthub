@@ -184,6 +184,23 @@ model ProjectComment {
   @@index([projectId])
 }
 
+/// Öffentliches Kunden-Änderungsformular (kein Login erforderlich)
+model ChangeRequest {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kontaktperson         String   @default("")
+  praxisKunde           String   @default("") @map("praxis_kunde")
+  datum                 DateTime @db.Date
+  prioritaet            String   @default("mittel")
+  beschreibungProblem   String   @default("") @map("beschreibung_problem")
+  linkAnfrage           String   @default("") @map("link_anfrage")
+  fehlerhaftesVerhalten String   @default("") @map("fehlerhaftes_verhalten")
+  erwartesVerhalten     String   @default("") @map("erwartes_verhalten")
+  status                String   @default("offen")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  @@map("change_requests")
+}
+
 /// Eintrag im Testing-Protokoll eines Projekts
 model TestingEntry {
   id          String   @id @default(cuid())
