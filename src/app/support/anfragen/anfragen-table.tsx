@@ -4,6 +4,7 @@ import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { Check, ChevronDown, ChevronUp, Copy, ExternalLink, FileDown, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -19,7 +20,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { updateChangeRequestStatus } from "../actions";
+import { updateChangeRequestStatus, updateChangeRequestPriority } from "../actions";
 
 interface Anfrage {
   id: string;
@@ -94,6 +95,7 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -107,15 +109,10 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const exportDocx = async () => {
-    const { generateChangeRequestDocx } = await import("../docx-export");
-    await generateChangeRequestDocx(filtered);
-  };
-
   const [optimistic, applyOptimistic] = useOptimistic(
     anfragen,
-    (state: Anfrage[], { id, status }: { id: string; status: string }) =>
-      state.map((a) => (a.id === id ? { ...a, status } : a))
+    (state: Anfrage[], patch: { id: string; status?: string; prioritaet?: string }) =>
+      state.map((a) => (a.id === patch.id ? { ...a, ...patch } : a))
   );
 
   const changeStatus = (id: string, status: string) => {
@@ -125,13 +122,16 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
     });
   };
 
+  const changePriority = (id: string, prioritaet: string) => {
+    startTransition(async () => {
+      applyOptimistic({ id, prioritaet });
+      await updateChangeRequestPriority(id, prioritaet);
+    });
+  };
+
   const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
   };
 
   const filtered = useMemo(() => {
@@ -141,14 +141,13 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
         !a.kontaktperson.toLowerCase().includes(search.toLowerCase()) &&
         !a.praxisKunde.toLowerCase().includes(search.toLowerCase()) &&
         !a.beschreibungProblem.toLowerCase().includes(search.toLowerCase())
-      )
-        return false;
+      ) return false;
       if (statusFilter !== "alle" && a.status !== statusFilter) return false;
       if (priorityFilter !== "alle" && a.prioritaet !== priorityFilter) return false;
       return true;
     });
 
-    result = [...result].sort((a, b) => {
+    return [...result].sort((a, b) => {
       let cmp = 0;
       if (sortKey === "createdAt") cmp = a.createdAt.localeCompare(b.createdAt);
       else if (sortKey === "datum") cmp = a.datum.localeCompare(b.datum);
@@ -157,19 +156,41 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
       else if (sortKey === "status") cmp = (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
       return sortDir === "asc" ? cmp : -cmp;
     });
-
-    return result;
   }, [optimistic, search, statusFilter, priorityFilter, sortKey, sortDir]);
+
+  // Checkbox helpers
+  const filteredIds = useMemo(() => new Set(filtered.map((a) => a.id)), [filtered]);
+  const checkedInView = [...checkedIds].filter((id) => filteredIds.has(id));
+  const allChecked = filtered.length > 0 && checkedInView.length === filtered.length;
+  const someChecked = checkedInView.length > 0 && !allChecked;
+
+  const toggleAll = () => {
+    if (allChecked) {
+      setCheckedIds((prev) => { const s = new Set(prev); filtered.forEach((a) => s.delete(a.id)); return s; });
+    } else {
+      setCheckedIds((prev) => { const s = new Set(prev); filtered.forEach((a) => s.add(a.id)); return s; });
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setCheckedIds((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  };
+
+  const exportDocx = async () => {
+    const { generateChangeRequestDocx } = await import("../docx-export");
+    const toExport = checkedInView.length > 0
+      ? filtered.filter((a) => checkedIds.has(a.id))
+      : filtered;
+    await generateChangeRequestDocx(toExport);
+  };
 
   const selected = selectedId ? optimistic.find((a) => a.id === selectedId) ?? null : null;
 
   function SortIcon({ col }: { col: SortKey }) {
     if (sortKey !== col) return null;
-    return sortDir === "asc" ? (
-      <ChevronUp className="size-3.5 text-foreground" />
-    ) : (
-      <ChevronDown className="size-3.5 text-foreground" />
-    );
+    return sortDir === "asc"
+      ? <ChevronUp className="size-3.5 text-foreground" />
+      : <ChevronDown className="size-3.5 text-foreground" />;
   }
 
   function Th({ col, label }: { col: SortKey; label: string }) {
@@ -178,10 +199,7 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
         className="cursor-pointer select-none whitespace-nowrap px-3 py-2.5 text-left text-xs font-medium text-muted-foreground hover:text-foreground"
         onClick={() => handleSort(col)}
       >
-        <span className="inline-flex items-center gap-1">
-          {label}
-          <SortIcon col={col} />
-        </span>
+        <span className="inline-flex items-center gap-1">{label}<SortIcon col={col} /></span>
       </th>
     );
   }
@@ -200,46 +218,38 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
         </Button>
       </div>
 
+      {/* Filter + Export */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="relative max-w-72 flex-1">
           <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Suchen…"
-            className="pl-8"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <Input placeholder="Suchen…" className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v)}>
           <SelectTrigger className="w-44">
-            <SelectValue>
-              {statusFilter === "alle" ? "Alle Status" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
-            </SelectValue>
+            <SelectValue>{statusFilter === "alle" ? "Alle Status" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="alle">Alle Status</SelectItem>
-            {STATUS_OPTIONS.map((s) => (
-              <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
-            ))}
+            {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={priorityFilter} onValueChange={(v) => v && setPriorityFilter(v)}>
           <SelectTrigger className="w-36">
-            <SelectValue>
-              {priorityFilter === "alle" ? "Alle Prioritäten" : PRIORITY_LABEL[priorityFilter] ?? priorityFilter}
-            </SelectValue>
+            <SelectValue>{priorityFilter === "alle" ? "Alle Prioritäten" : PRIORITY_LABEL[priorityFilter] ?? priorityFilter}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="alle">Alle Prioritäten</SelectItem>
-            {Object.entries(PRIORITY_LABEL).map(([v, l]) => (
-              <SelectItem key={v} value={v}>{l}</SelectItem>
-            ))}
+            {Object.entries(PRIORITY_LABEL).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
           </SelectContent>
         </Select>
-        <p className="ml-auto text-xs text-muted-foreground">{filtered.length} Einträge</p>
+        <p className="ml-auto text-xs text-muted-foreground">
+          {checkedInView.length > 0
+            ? `${checkedInView.length} von ${filtered.length} ausgewählt`
+            : `${filtered.length} Einträge`}
+        </p>
         <Button type="button" variant="outline" size="sm" onClick={exportDocx} disabled={filtered.length === 0}>
           <FileDown className="size-4" />
-          Word exportieren
+          {checkedInView.length > 0 ? `${checkedInView.length} exportieren` : "Alle exportieren"}
         </Button>
       </div>
 
@@ -253,6 +263,14 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/30">
                 <tr>
+                  <th className="w-10 px-3 py-2.5">
+                    <Checkbox
+                      checked={allChecked}
+                      data-state={someChecked ? "indeterminate" : allChecked ? "checked" : "unchecked"}
+                      onCheckedChange={toggleAll}
+                      aria-label="Alle auswählen"
+                    />
+                  </th>
                   <Th col="datum" label="Datum" />
                   <Th col="praxisKunde" label="Praxis / Kunde" />
                   <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Kontakt</th>
@@ -266,18 +284,26 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
                 {filtered.map((a) => (
                   <tr
                     key={a.id}
-                    className="cursor-pointer transition-colors hover:bg-muted/20"
+                    className={cn("cursor-pointer transition-colors hover:bg-muted/20", checkedIds.has(a.id) && "bg-muted/10")}
                     onClick={() => setSelectedId(a.id)}
                   >
-                    <td className="whitespace-nowrap px-3 py-2.5 text-sm">
+                    <td className="px-3 py-2.5" onClick={(e) => { e.stopPropagation(); toggleOne(a.id); }}>
+                      <Checkbox checked={checkedIds.has(a.id)} onCheckedChange={() => toggleOne(a.id)} aria-label="Auswählen" />
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5">
                       {dateFormatter.format(new Date(a.datum + "T00:00:00"))}
                     </td>
                     <td className="max-w-[180px] truncate px-3 py-2.5 font-medium">{a.praxisKunde || "—"}</td>
                     <td className="max-w-[140px] truncate px-3 py-2.5 text-muted-foreground">{a.kontaktperson || "—"}</td>
-                    <td className="px-3 py-2.5">
-                      <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", PRIORITY_BADGE[a.prioritaet] ?? "bg-muted text-muted-foreground")}>
-                        {PRIORITY_LABEL[a.prioritaet] ?? a.prioritaet}
-                      </span>
+                    <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <Select value={a.prioritaet} onValueChange={(v) => v && changePriority(a.id, v)}>
+                        <SelectTrigger className={cn("h-7 w-28 border-0 bg-transparent px-2 text-[11px] font-medium shadow-none focus:ring-0", PRIORITY_BADGE[a.prioritaet] ?? "")}>
+                          <SelectValue>{PRIORITY_LABEL[a.prioritaet] ?? a.prioritaet}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(PRIORITY_LABEL).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </td>
                     <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                       <Select value={a.status} onValueChange={(v) => v && changeStatus(a.id, v)}>
@@ -285,9 +311,7 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
                           <SelectValue>{a.status.charAt(0).toUpperCase() + a.status.slice(1)}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          {STATUS_OPTIONS.map((s) => (
-                            <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
-                          ))}
+                          {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </td>
@@ -327,9 +351,7 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
                   <SelectValue>{selected.status.charAt(0).toUpperCase() + selected.status.slice(1)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
-                  ))}
+                  {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -344,13 +366,9 @@ export function AnfragenTable({ anfragen }: { anfragen: Anfrage[] }) {
               {selected.linkAnfrage && (
                 <div className="grid grid-cols-[140px_1fr] gap-3 border-t py-2.5">
                   <p className="text-xs font-medium text-muted-foreground">Link</p>
-                  <a
-                    href={selected.linkAnfrage}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <a href={selected.linkAnfrage} target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                    onClick={(e) => e.stopPropagation()}>
                     {selected.linkAnfrage}
                     <ExternalLink className="size-3" />
                   </a>

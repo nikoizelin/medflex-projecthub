@@ -19,6 +19,12 @@ export async function updateChangeRequestStatus(id: string, status: string) {
   revalidatePath("/support/anfragen");
 }
 
+export async function updateChangeRequestPriority(id: string, prioritaet: string) {
+  await prisma.changeRequest.update({ where: { id }, data: { prioritaet } });
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath("/support/anfragen");
+}
+
 export async function submitChangeRequests(entries: ChangeRequestEntry[]) {
   if (!entries.length) return;
 

@@ -6,24 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import { submitChangeRequests, type ChangeRequestEntry } from "../actions";
-
-type Priority = "kritisch" | "hoch" | "mittel" | "niedrig";
-
-const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
-  { value: "kritisch", label: "Kritisch" },
-  { value: "hoch", label: "Hoch" },
-  { value: "mittel", label: "Mittel" },
-  { value: "niedrig", label: "Niedrig" },
-];
-
-const PRIORITY_BADGE: Record<Priority, string> = {
-  kritisch: "bg-red-500/10 text-red-700 dark:text-red-400",
-  hoch: "bg-orange-500/10 text-orange-700 dark:text-orange-400",
-  mittel: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-  niedrig: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-};
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -112,11 +95,6 @@ export function ChangeRequestForm() {
                   ? [entry.praxisKunde, entry.kontaktperson].filter(Boolean).join(" · ")
                   : "Eintrag"}
               </p>
-              {entry.prioritaet && (
-                <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", PRIORITY_BADGE[entry.prioritaet as Priority])}>
-                  {PRIORITY_OPTIONS.find((p) => p.value === entry.prioritaet)?.label}
-                </span>
-              )}
             </div>
             {entries.length > 1 && (
               <Button
@@ -137,7 +115,7 @@ export function ChangeRequestForm() {
               <Input
                 value={entry.kontaktperson}
                 onChange={(e) => update(i, { kontaktperson: e.target.value })}
-                placeholder="Name der Kontaktperson"
+                placeholder="Name"
                 required
               />
             </Field>
@@ -146,7 +124,7 @@ export function ChangeRequestForm() {
               <Input
                 value={entry.praxisKunde}
                 onChange={(e) => update(i, { praxisKunde: e.target.value })}
-                placeholder="Name der Praxis oder des Kunden"
+                placeholder="Name der Einrichtung"
                 required
               />
             </Field>
@@ -157,18 +135,6 @@ export function ChangeRequestForm() {
                 value={entry.datum}
                 onChange={(e) => update(i, { datum: e.target.value })}
               />
-            </Field>
-
-            <Field label="Priorität">
-              <select
-                value={entry.prioritaet}
-                onChange={(e) => update(i, { prioritaet: e.target.value as Priority })}
-                className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                {PRIORITY_OPTIONS.map((p) => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
-              </select>
             </Field>
 
             <div className="sm:col-span-2">
@@ -184,12 +150,12 @@ export function ChangeRequestForm() {
             </div>
 
             <div className="sm:col-span-2">
-              <Field label="Link der Anfrage">
+              <Field label="Link der MedFlex-Anfrage">
                 <Input
                   type="url"
                   value={entry.linkAnfrage}
                   onChange={(e) => update(i, { linkAnfrage: e.target.value })}
-                  placeholder="https://..."
+                  placeholder="https://app.medflex.de/arzt/inbox/requests/req-91116ab0b6c96e1780130d6d22ab902d"
                 />
               </Field>
             </div>
