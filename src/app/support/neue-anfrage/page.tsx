@@ -14,7 +14,7 @@ export default function NeuAnfragePage() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-foreground">Änderungsanfrage</h1>
-            <p className="text-sm text-muted-foreground">MedFlex Schweiz AG · Voice Agent Support</p>
+            <p className="text-sm text-muted-foreground">MedFlex Schweiz AG · Support</p>
           </div>
         </div>
         <ChangeRequestForm />

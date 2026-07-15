@@ -13,13 +13,23 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-export default async function KontoPage() {
+export default async function KontoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ info?: string }>;
+}) {
   const user = await getCurrentUser();
+  const { info } = await searchParams;
   if (!user) return null;
 
   return (
     <div>
       <h1 className="mb-3.5 text-lg font-semibold">Benutzerkonto</h1>
+      {info && (
+        <p className="mb-4 max-w-80 rounded-md bg-primary/10 px-3 py-2 text-sm text-primary">
+          {info}
+        </p>
+      )}
       <div className="max-w-80 rounded-lg border bg-background p-3.5">
         <div className="mb-3.5 flex items-center gap-3">
           <Avatar className="size-11">
