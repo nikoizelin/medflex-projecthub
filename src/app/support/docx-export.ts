@@ -120,11 +120,8 @@ function entryTable(entry: ExportEntry): Table {
     row("Link der Anfrage", entry.linkAnfrage),
     row("Fehlerhaftes Verhalten", entry.fehlerhaftesVerhalten),
     row("Erwartetes Verhalten", entry.erwartesVerhalten),
+    row("Kommentar", entry.kommentar, true),
   ];
-
-  if (entry.kommentar) {
-    rows.push(row("Interner Kommentar", entry.kommentar, true));
-  }
 
   return new Table({
     width: { size: CELL_W, type: WidthType.DXA },

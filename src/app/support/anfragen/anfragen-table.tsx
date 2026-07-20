@@ -5,7 +5,6 @@ import {
   useOptimistic,
   useState,
   useTransition,
-  useRef,
 } from "react";
 import {
   Check,
@@ -41,7 +40,6 @@ import {
   updateChangeRequestStatus,
   updateChangeRequestPriority,
   updateChangeRequestAssignee,
-  updateChangeRequestKommentar,
 } from "../actions";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -145,48 +143,6 @@ const dateFormatter = new Intl.DateTimeFormat("de-CH", {
   year: "numeric",
 });
 
-// ── KommentarCell ──────────────────────────────────────────────────────────
-
-function KommentarCell({
-  entryId,
-  initial,
-}: {
-  entryId: string;
-  initial: string;
-}) {
-  const [value, setValue] = useState(initial);
-  const [saving, setSaving] = useState(false);
-  const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const save = (v: string) => {
-    if (timeout.current) clearTimeout(timeout.current);
-    timeout.current = setTimeout(async () => {
-      setSaving(true);
-      await updateChangeRequestKommentar(entryId, v);
-      setSaving(false);
-    }, 800);
-  };
-
-  return (
-    <div className="relative flex-1">
-      <Input
-        value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          save(e.target.value);
-        }}
-        placeholder="Interner Kommentar…"
-        className="h-7 text-xs"
-      />
-      {saving && (
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
-          …
-        </span>
-      )}
-    </div>
-  );
-}
-
 // ── ScreenshotViewer ────────────────────────────────────────────────────────
 
 function ScreenshotViewer({ screenshots }: { screenshots: Screenshot[] }) {
@@ -254,7 +210,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 // ── Main Component ─────────────────────────────────────────────────────────
 
 type OptimisticEntry = ChangeEntry;
-type OptimisticPatch = Partial<Pick<ChangeEntry, "status" | "prioritaet" | "assigneeId" | "assigneeName" | "kommentar">>;
+type OptimisticPatch = Partial<Pick<ChangeEntry, "status" | "prioritaet" | "assigneeId" | "assigneeName">>;
 
 export function AnfragenTable({
   supportRequests,
@@ -630,9 +586,6 @@ export function AnfragenTable({
                             <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                               Bearbeiter
                             </th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                              Kommentar
-                            </th>
                             <th className="w-16 px-3 py-2" />
                           </tr>
                         </thead>
@@ -765,12 +718,6 @@ export function AnfragenTable({
                                     ))}
                                   </SelectContent>
                                 </Select>
-                              </td>
-                              <td
-                                className="px-3 py-2.5"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <KommentarCell entryId={entry.id} initial={entry.kommentar} />
                               </td>
                               <td className="px-3 py-2.5">
                                 <Button
