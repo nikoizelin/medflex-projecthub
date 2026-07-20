@@ -64,7 +64,6 @@ interface ChangeEntry {
   status: string;
   assigneeId: string | null;
   assigneeName: string | null;
-  kommentar: string;
   screenshots: Screenshot[];
   createdAt: string;
 }
@@ -361,7 +360,7 @@ export function AnfragenTable({
           fehlerhaftesVerhalten: e.fehlerhaftesVerhalten,
           erwartesVerhalten: e.erwartesVerhalten,
           status: e.status,
-          kommentar: e.kommentar,
+          kommentar: "",
         }))
     );
     await generateChangeRequestDocx(toExport);
@@ -828,16 +827,6 @@ export function AnfragenTable({
               </div>
             )}
 
-            {selectedEntry.entry.kommentar && (
-              <div className="rounded-lg border-l-4 border-amber-400 bg-amber-50 px-4 py-3 dark:bg-amber-950/20">
-                <p className="mb-1 text-xs font-medium text-amber-700 dark:text-amber-400">
-                  Interner Kommentar
-                </p>
-                <p className="whitespace-pre-wrap text-sm">
-                  {selectedEntry.entry.kommentar}
-                </p>
-              </div>
-            )}
           </DialogContent>
         )}
       </Dialog>

@@ -40,7 +40,6 @@ export default async function AnfragenPage() {
       status: e.status,
       assigneeId: e.assigneeId,
       assigneeName: e.assignee?.name ?? null,
-      kommentar: e.kommentar,
       screenshots: e.screenshots.map((s) => ({
         id: s.id,
         filename: s.filename,

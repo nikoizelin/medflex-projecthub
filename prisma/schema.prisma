@@ -212,7 +212,6 @@ model ChangeRequest {
   status                String               @default("offen")
   assigneeId            String?              @map("assignee_id")
   assignee              User?                @relation("SupportAssignee", fields: [assigneeId], references: [id])
-  kommentar             String               @default("")
   screenshots           ScreenshotAttachment[]
   createdAt             DateTime             @default(now()) @map("created_at")
 

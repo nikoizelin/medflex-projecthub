@@ -77,11 +77,6 @@ export async function updateChangeRequestPriority(id: string, prioritaet: string
   revalidatePath("/support/anfragen");
 }
 
-export async function updateChangeRequestKommentar(id: string, kommentar: string) {
-  await prisma.changeRequest.update({ where: { id }, data: { kommentar } });
-  revalidatePath("/support/anfragen");
-}
-
 export async function updateChangeRequestAssignee(id: string, assigneeId: string | null) {
   const entry = await prisma.changeRequest.update({
     where: { id },
