@@ -7,10 +7,11 @@ import {
   useTransition,
 } from "react";
 import {
+  Archive,
+  ArchiveRestore,
   Check,
   ChevronDown,
   ChevronRight,
-  ChevronUp,
   Copy,
   ExternalLink,
   FileDown,
@@ -40,6 +41,8 @@ import {
   updateChangeRequestStatus,
   updateChangeRequestPriority,
   updateChangeRequestAssignee,
+  archiveChangeRequest,
+  archiveSupportRequest,
 } from "../actions";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -64,6 +67,7 @@ interface ChangeEntry {
   status: string;
   assigneeId: string | null;
   assigneeName: string | null;
+  archived: boolean;
   screenshots: Screenshot[];
   createdAt: string;
 }
@@ -73,6 +77,7 @@ interface SupportRequestData {
   kontaktperson: string;
   praxisKunde: string;
   email: string;
+  archived: boolean;
   createdAt: string;
   entries: ChangeEntry[];
 }
@@ -218,6 +223,7 @@ export function AnfragenTable({
   supportRequests: SupportRequestData[];
   users: User[];
 }) {
+  const [activeTab, setActiveTab] = useState<"aktiv" | "archiv">("aktiv");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("alle");
   const [priorityFilter, setPriorityFilter] = useState("alle");
@@ -227,6 +233,10 @@ export function AnfragenTable({
   const [checkedEntryIds, setCheckedEntryIds] = useState<Set<string>>(new Set());
   const [selectedEntry, setSelectedEntry] = useState<{ entry: ChangeEntry; sr: SupportRequestData } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState<
+    | { type: "entry" | "request"; id: string; label: string; archive: boolean }
+    | null
+  >(null);
   const [, startTransition] = useTransition();
 
   const publicUrl =
@@ -283,11 +293,26 @@ export function AnfragenTable({
     });
   };
 
-  // Filter logic
+  const handleArchive = () => {
+    if (!confirmArchive) return;
+    startTransition(async () => {
+      if (confirmArchive.type === "entry") {
+        await archiveChangeRequest(confirmArchive.id, confirmArchive.archive);
+      } else {
+        await archiveSupportRequest(confirmArchive.id, confirmArchive.archive);
+      }
+      setConfirmArchive(null);
+      setSelectedEntry(null);
+    });
+  };
+
+  // Active tab: non-archived SRs with non-archived entries
   const filteredRequests = useMemo(() => {
     return optimisticRequests
+      .filter((sr) => !sr.archived)
       .map((sr) => {
         const matchingEntries = sr.entries.filter((e) => {
+          if (e.archived) return false;
           if (statusFilter !== "alle" && e.status !== statusFilter) return false;
           if (priorityFilter !== "alle" && e.prioritaet !== priorityFilter) return false;
           if (kategorieFilter !== "alle" && e.kategorie !== kategorieFilter) return false;
@@ -311,6 +336,22 @@ export function AnfragenTable({
       })
       .filter((sr) => sr.entries.length > 0);
   }, [optimisticRequests, search, statusFilter, priorityFilter, kategorieFilter, assigneeFilter]);
+
+  // Archive tab: archived SRs (all entries) + non-archived SRs with archived entries
+  const archiveGroups = useMemo(() => {
+    const groups: { sr: SupportRequestData; entries: ChangeEntry[]; srArchived: boolean }[] = [];
+    for (const sr of optimisticRequests) {
+      if (sr.archived) {
+        groups.push({ sr, entries: sr.entries, srArchived: true });
+      } else {
+        const archivedEntries = sr.entries.filter((e) => e.archived);
+        if (archivedEntries.length > 0) {
+          groups.push({ sr, entries: archivedEntries, srArchived: false });
+        }
+      }
+    }
+    return groups;
+  }, [optimisticRequests]);
 
   const allFilteredEntryIds = useMemo(
     () => filteredRequests.flatMap((sr) => sr.entries.map((e) => e.id)),
@@ -390,355 +431,628 @@ export function AnfragenTable({
         </Button>
       </div>
 
-      {/* Filter-Zeile */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative max-w-64 flex-1">
-          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Suchen…"
-            className="pl-8"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        <Select value={kategorieFilter} onValueChange={(v) => v && setKategorieFilter(v)}>
-          <SelectTrigger className="w-44">
-            <SelectValue>
-              {kategorieFilter === "alle"
-                ? "Alle Kategorien"
-                : KATEGORIE_LABEL[kategorieFilter] ?? kategorieFilter}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="alle">Alle Kategorien</SelectItem>
-            {Object.entries(KATEGORIE_LABEL).map(([v, l]) => (
-              <SelectItem key={v} value={v}>{l}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v)}>
-          <SelectTrigger className="w-44">
-            <SelectValue>
-              {statusFilter === "alle"
-                ? "Alle Status"
-                : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="alle">Alle Status</SelectItem>
-            {STATUS_OPTIONS.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s.charAt(0).toUpperCase() + s.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={priorityFilter} onValueChange={(v) => v && setPriorityFilter(v)}>
-          <SelectTrigger className="w-36">
-            <SelectValue>
-              {priorityFilter === "alle"
-                ? "Alle Prioritäten"
-                : PRIORITY_LABEL[priorityFilter] ?? priorityFilter}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="alle">Alle Prioritäten</SelectItem>
-            {Object.entries(PRIORITY_LABEL).map(([v, l]) => (
-              <SelectItem key={v} value={v}>{l}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={assigneeFilter} onValueChange={(v) => v && setAssigneeFilter(v)}>
-          <SelectTrigger className="w-44">
-            <SelectValue>
-              {assigneeFilter === "alle"
-                ? "Alle Bearbeiter"
-                : assigneeFilter === "niemand"
-                ? "Nicht zugewiesen"
-                : users.find((u) => u.id === assigneeFilter)?.name ?? "Bearbeiter"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="alle">Alle Bearbeiter</SelectItem>
-            <SelectItem value="niemand">Nicht zugewiesen</SelectItem>
-            {users.map((u) => (
-              <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <p className="ml-auto text-xs text-muted-foreground">
-          {checkedInView.length > 0
-            ? `${checkedInView.length} von ${totalEntries} ausgewählt`
-            : `${filteredRequests.length} Anfragen · ${totalEntries} Einträge`}
-        </p>
-        <Button
+      {/* Tab-Switcher */}
+      <div className="mb-4 flex gap-1 rounded-lg border bg-muted/30 p-1 w-fit">
+        <button
           type="button"
-          variant="outline"
-          size="sm"
-          onClick={exportDocx}
-          disabled={totalEntries === 0}
+          onClick={() => setActiveTab("aktiv")}
+          className={cn(
+            "rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
+            activeTab === "aktiv"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
         >
-          <FileDown className="size-4" />
-          {checkedInView.length > 0
-            ? `${checkedInView.length} exportieren`
-            : "Alle exportieren"}
-        </Button>
+          Aktiv
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("archiv")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
+            activeTab === "archiv"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Archiv
+          {archiveGroups.length > 0 && (
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+              {archiveGroups.length}
+            </span>
+          )}
+        </button>
       </div>
 
-      {/* Tabelle */}
-      {filteredRequests.length === 0 ? (
-        <div className="rounded-lg border bg-background py-16 text-center">
-          <p className="text-sm text-muted-foreground">Keine Anfragen gefunden.</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {filteredRequests.map((sr) => {
-            const expanded = expandedIds.has(sr.id);
-            const srEntryIds = sr.entries.map((e) => e.id);
-            const srAllChecked =
-              srEntryIds.length > 0 && srEntryIds.every((id) => checkedEntryIds.has(id));
-            const srSomeChecked =
-              srEntryIds.some((id) => checkedEntryIds.has(id)) && !srAllChecked;
+      {/* ── AKTIV TAB ── */}
+      {activeTab === "aktiv" && (
+        <>
+          {/* Filter-Zeile */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="relative max-w-64 flex-1">
+              <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Suchen…"
+                className="pl-8"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
 
-            return (
-              <div key={sr.id} className="overflow-hidden rounded-lg border bg-background">
-                {/* Parent row */}
-                <div
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-muted/20"
-                  onClick={() => toggleExpand(sr.id)}
-                >
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSrCheck(sr);
-                    }}
-                  >
-                    <Checkbox
-                      checked={srAllChecked}
-                      data-state={
-                        srSomeChecked ? "indeterminate" : srAllChecked ? "checked" : "unchecked"
-                      }
-                      onCheckedChange={() => toggleSrCheck(sr)}
-                      aria-label="Alle Einträge auswählen"
-                    />
-                  </div>
+            <Select value={kategorieFilter} onValueChange={(v) => v && setKategorieFilter(v)}>
+              <SelectTrigger className="w-44">
+                <SelectValue>
+                  {kategorieFilter === "alle"
+                    ? "Alle Kategorien"
+                    : KATEGORIE_LABEL[kategorieFilter] ?? kategorieFilter}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="alle">Alle Kategorien</SelectItem>
+                {Object.entries(KATEGORIE_LABEL).map(([v, l]) => (
+                  <SelectItem key={v} value={v}>{l}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-                  {expanded ? (
-                    <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                  )}
+            <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v)}>
+              <SelectTrigger className="w-44">
+                <SelectValue>
+                  {statusFilter === "alle"
+                    ? "Alle Status"
+                    : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="alle">Alle Status</SelectItem>
+                {STATUS_OPTIONS.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{sr.praxisKunde || "—"}</span>
-                      <span className="text-muted-foreground">·</span>
-                      <span className="text-sm text-muted-foreground">{sr.kontaktperson}</span>
-                      {sr.email && (
-                        <>
-                          <span className="text-muted-foreground">·</span>
-                          <span className="text-xs text-muted-foreground">{sr.email}</span>
-                        </>
+            <Select value={priorityFilter} onValueChange={(v) => v && setPriorityFilter(v)}>
+              <SelectTrigger className="w-36">
+                <SelectValue>
+                  {priorityFilter === "alle"
+                    ? "Alle Prioritäten"
+                    : PRIORITY_LABEL[priorityFilter] ?? priorityFilter}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="alle">Alle Prioritäten</SelectItem>
+                {Object.entries(PRIORITY_LABEL).map(([v, l]) => (
+                  <SelectItem key={v} value={v}>{l}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={assigneeFilter} onValueChange={(v) => v && setAssigneeFilter(v)}>
+              <SelectTrigger className="w-44">
+                <SelectValue>
+                  {assigneeFilter === "alle"
+                    ? "Alle Bearbeiter"
+                    : assigneeFilter === "niemand"
+                    ? "Nicht zugewiesen"
+                    : users.find((u) => u.id === assigneeFilter)?.name ?? "Bearbeiter"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="alle">Alle Bearbeiter</SelectItem>
+                <SelectItem value="niemand">Nicht zugewiesen</SelectItem>
+                {users.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <p className="ml-auto text-xs text-muted-foreground">
+              {checkedInView.length > 0
+                ? `${checkedInView.length} von ${totalEntries} ausgewählt`
+                : `${filteredRequests.length} Anfragen · ${totalEntries} Einträge`}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={exportDocx}
+              disabled={totalEntries === 0}
+            >
+              <FileDown className="size-4" />
+              {checkedInView.length > 0
+                ? `${checkedInView.length} exportieren`
+                : "Alle exportieren"}
+            </Button>
+          </div>
+
+          {/* Tabelle */}
+          {filteredRequests.length === 0 ? (
+            <div className="rounded-lg border bg-background py-16 text-center">
+              <p className="text-sm text-muted-foreground">Keine Anfragen gefunden.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {filteredRequests.map((sr) => {
+                const expanded = expandedIds.has(sr.id);
+                const srEntryIds = sr.entries.map((e) => e.id);
+                const srAllChecked =
+                  srEntryIds.length > 0 && srEntryIds.every((id) => checkedEntryIds.has(id));
+                const srSomeChecked =
+                  srEntryIds.some((id) => checkedEntryIds.has(id)) && !srAllChecked;
+
+                return (
+                  <div key={sr.id} className="overflow-hidden rounded-lg border bg-background">
+                    {/* Parent row */}
+                    <div
+                      className="group/row flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-muted/20"
+                      onClick={() => toggleExpand(sr.id)}
+                    >
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSrCheck(sr);
+                        }}
+                      >
+                        <Checkbox
+                          checked={srAllChecked}
+                          data-state={
+                            srSomeChecked ? "indeterminate" : srAllChecked ? "checked" : "unchecked"
+                          }
+                          onCheckedChange={() => toggleSrCheck(sr)}
+                          aria-label="Alle Einträge auswählen"
+                        />
+                      </div>
+
+                      {expanded ? (
+                        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                       )}
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{sr.praxisKunde || "—"}</span>
+                          <span className="text-muted-foreground">·</span>
+                          <span className="text-sm text-muted-foreground">{sr.kontaktperson}</span>
+                          {sr.email && (
+                            <>
+                              <span className="text-muted-foreground">·</span>
+                              <span className="text-xs text-muted-foreground">{sr.email}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                          {sr.entries.length}{" "}
+                          {sr.entries.length === 1 ? "Eintrag" : "Einträge"}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {dateTimeFormatter.format(new Date(sr.createdAt))}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmArchive({
+                              type: "request",
+                              id: sr.id,
+                              label: sr.praxisKunde || sr.kontaktperson || "diese Anfrage",
+                              archive: true,
+                            });
+                          }}
+                          className="flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground group-hover/row:opacity-100"
+                          aria-label="Anfrage archivieren"
+                        >
+                          <Archive className="size-3.5" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                      {sr.entries.length}{" "}
-                      {sr.entries.length === 1 ? "Eintrag" : "Einträge"}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {dateTimeFormatter.format(new Date(sr.createdAt))}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Sub-entries */}
-                {expanded && (
-                  <div className="border-t">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="border-b bg-muted/20">
-                          <tr>
-                            <th className="w-10 px-3 py-2" />
-                            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                              Kategorie
-                            </th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                              Datum
-                            </th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                              Beschreibung
-                            </th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                              Priorität
-                            </th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                              Status
-                            </th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                              Bearbeiter
-                            </th>
-                            <th className="w-16 px-3 py-2" />
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                          {sr.entries.map((entry) => (
-                            <tr
-                              key={entry.id}
-                              className={cn(
-                                "hover:bg-muted/10",
-                                checkedEntryIds.has(entry.id) && "bg-muted/10"
-                              )}
-                            >
-                              <td
-                                className="px-3 py-2.5"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Checkbox
-                                  checked={checkedEntryIds.has(entry.id)}
-                                  onCheckedChange={() => toggleEntryCheck(entry.id)}
-                                  aria-label="Auswählen"
-                                />
-                              </td>
-                              <td className="px-3 py-2.5">
-                                <span
+                    {/* Sub-entries */}
+                    {expanded && (
+                      <div className="border-t">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="border-b bg-muted/20">
+                              <tr>
+                                <th className="w-10 px-3 py-2" />
+                                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                  Kategorie
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                  Datum
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                  Beschreibung
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                  Priorität
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                  Status
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                  Bearbeiter
+                                </th>
+                                <th className="w-20 px-3 py-2" />
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              {sr.entries.map((entry) => (
+                                <tr
+                                  key={entry.id}
                                   className={cn(
-                                    "rounded-full px-2 py-0.5 text-[11px] font-medium",
-                                    KATEGORIE_BADGE[entry.kategorie] ??
-                                      "bg-muted text-muted-foreground"
+                                    "hover:bg-muted/10",
+                                    checkedEntryIds.has(entry.id) && "bg-muted/10"
                                   )}
                                 >
-                                  {KATEGORIE_LABEL[entry.kategorie] ?? entry.kategorie}
-                                </span>
-                              </td>
-                              <td className="whitespace-nowrap px-3 py-2.5 text-xs">
-                                {dateFormatter.format(
-                                  new Date(entry.datum + "T00:00:00")
-                                )}
-                              </td>
-                              <td className="max-w-[200px] px-3 py-2.5">
-                                <p className="line-clamp-2 text-xs">
-                                  {entry.beschreibungProblem || "—"}
-                                </p>
-                                {entry.screenshots.length > 0 && (
-                                  <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
-                                    <ImageIcon className="size-3" />
-                                    {entry.screenshots.length}
-                                  </div>
-                                )}
-                              </td>
-                              <td
-                                className="px-3 py-2.5"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Select
-                                  value={entry.prioritaet}
-                                  onValueChange={(v) => v && changePriority(entry.id, v)}
-                                >
-                                  <SelectTrigger
-                                    className={cn(
-                                      "h-7 w-28 border-0 bg-transparent px-2 text-[11px] font-medium shadow-none focus:ring-0",
-                                      PRIORITY_BADGE[entry.prioritaet] ?? ""
-                                    )}
+                                  <td
+                                    className="px-3 py-2.5"
+                                    onClick={(e) => e.stopPropagation()}
                                   >
-                                    <SelectValue>
+                                    <Checkbox
+                                      checked={checkedEntryIds.has(entry.id)}
+                                      onCheckedChange={() => toggleEntryCheck(entry.id)}
+                                      aria-label="Auswählen"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2.5">
+                                    <span
+                                      className={cn(
+                                        "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                                        KATEGORIE_BADGE[entry.kategorie] ??
+                                          "bg-muted text-muted-foreground"
+                                      )}
+                                    >
+                                      {KATEGORIE_LABEL[entry.kategorie] ?? entry.kategorie}
+                                    </span>
+                                  </td>
+                                  <td className="whitespace-nowrap px-3 py-2.5 text-xs">
+                                    {dateFormatter.format(
+                                      new Date(entry.datum + "T00:00:00")
+                                    )}
+                                  </td>
+                                  <td className="max-w-[200px] px-3 py-2.5">
+                                    <p className="line-clamp-2 text-xs">
+                                      {entry.beschreibungProblem || "—"}
+                                    </p>
+                                    {entry.screenshots.length > 0 && (
+                                      <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+                                        <ImageIcon className="size-3" />
+                                        {entry.screenshots.length}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td
+                                    className="px-3 py-2.5"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Select
+                                      value={entry.prioritaet}
+                                      onValueChange={(v) => v && changePriority(entry.id, v)}
+                                    >
+                                      <SelectTrigger
+                                        className={cn(
+                                          "h-7 w-28 border-0 bg-transparent px-2 text-[11px] font-medium shadow-none focus:ring-0",
+                                          PRIORITY_BADGE[entry.prioritaet] ?? ""
+                                        )}
+                                      >
+                                        <SelectValue>
+                                          {PRIORITY_LABEL[entry.prioritaet] ?? entry.prioritaet}
+                                        </SelectValue>
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {Object.entries(PRIORITY_LABEL).map(([v, l]) => (
+                                          <SelectItem key={v} value={v}>{l}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </td>
+                                  <td
+                                    className="px-3 py-2.5"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Select
+                                      value={entry.status}
+                                      onValueChange={(v) => v && changeStatus(entry.id, v)}
+                                    >
+                                      <SelectTrigger
+                                        className={cn(
+                                          "h-7 w-36 border-0 bg-transparent px-2 text-xs font-medium shadow-none focus:ring-0",
+                                          STATUS_BADGE[entry.status] ?? ""
+                                        )}
+                                      >
+                                        <SelectValue>
+                                          {entry.status.charAt(0).toUpperCase() +
+                                            entry.status.slice(1)}
+                                        </SelectValue>
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {STATUS_OPTIONS.map((s) => (
+                                          <SelectItem key={s} value={s}>
+                                            {s.charAt(0).toUpperCase() + s.slice(1)}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </td>
+                                  <td
+                                    className="px-3 py-2.5"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Select
+                                      value={entry.assigneeId ?? "niemand"}
+                                      onValueChange={(v) =>
+                                        changeAssignee(entry.id, v === "niemand" ? null : v)
+                                      }
+                                    >
+                                      <SelectTrigger className="h-7 w-40 border-0 bg-transparent px-2 text-xs shadow-none focus:ring-0">
+                                        <SelectValue>
+                                          {entry.assigneeName ?? (
+                                            <span className="text-muted-foreground">
+                                              Nicht zugewiesen
+                                            </span>
+                                          )}
+                                        </SelectValue>
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="niemand">
+                                          Nicht zugewiesen
+                                        </SelectItem>
+                                        {users.map((u) => (
+                                          <SelectItem key={u.id} value={u.id}>
+                                            {u.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </td>
+                                  <td className="px-3 py-2.5">
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 text-xs"
+                                        onClick={() => setSelectedEntry({ entry, sr })}
+                                      >
+                                        Details
+                                      </Button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setConfirmArchive({
+                                            type: "entry",
+                                            id: entry.id,
+                                            label:
+                                              KATEGORIE_LABEL[entry.kategorie] ??
+                                              entry.kategorie,
+                                            archive: true,
+                                          })
+                                        }
+                                        className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                                        aria-label="Eintrag archivieren"
+                                      >
+                                        <Archive className="size-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── ARCHIV TAB ── */}
+      {activeTab === "archiv" && (
+        <>
+          {archiveGroups.length === 0 ? (
+            <div className="rounded-lg border bg-background py-16 text-center">
+              <Archive className="mx-auto mb-3 size-8 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Keine archivierten Einträge.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {archiveGroups.map(({ sr, entries, srArchived }) => {
+                const expanded = expandedIds.has(sr.id + "-arch");
+                return (
+                  <div
+                    key={sr.id}
+                    className="overflow-hidden rounded-lg border bg-background opacity-80"
+                  >
+                    {/* Header */}
+                    <div
+                      className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-muted/20"
+                      onClick={() =>
+                        setExpandedIds((prev) => {
+                          const s = new Set(prev);
+                          s.has(sr.id + "-arch")
+                            ? s.delete(sr.id + "-arch")
+                            : s.add(sr.id + "-arch");
+                          return s;
+                        })
+                      }
+                    >
+                      {expanded ? (
+                        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-muted-foreground">
+                            {sr.praxisKunde || "—"}
+                          </span>
+                          <span className="text-muted-foreground">·</span>
+                          <span className="text-sm text-muted-foreground">{sr.kontaktperson}</span>
+                          {!srArchived && (
+                            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                              Einzelne Einträge archiviert
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                          {entries.length}{" "}
+                          {entries.length === 1 ? "Eintrag" : "Einträge"}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {dateTimeFormatter.format(new Date(sr.createdAt))}
+                        </span>
+                        {srArchived && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmArchive({
+                                type: "request",
+                                id: sr.id,
+                                label: sr.praxisKunde || sr.kontaktperson || "diese Anfrage",
+                                archive: false,
+                              });
+                            }}
+                          >
+                            <ArchiveRestore className="size-3.5" />
+                            Wiederherstellen
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Archived entries table */}
+                    {expanded && (
+                      <div className="border-t">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="border-b bg-muted/20">
+                              <tr>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                  Kategorie
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                  Datum
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                  Beschreibung
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                  Priorität
+                                </th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                  Status
+                                </th>
+                                <th className="w-36 px-3 py-2" />
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              {entries.map((entry) => (
+                                <tr key={entry.id} className="hover:bg-muted/10">
+                                  <td className="px-3 py-2.5">
+                                    <span
+                                      className={cn(
+                                        "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                                        KATEGORIE_BADGE[entry.kategorie] ??
+                                          "bg-muted text-muted-foreground"
+                                      )}
+                                    >
+                                      {KATEGORIE_LABEL[entry.kategorie] ?? entry.kategorie}
+                                    </span>
+                                  </td>
+                                  <td className="whitespace-nowrap px-3 py-2.5 text-xs text-muted-foreground">
+                                    {dateFormatter.format(
+                                      new Date(entry.datum + "T00:00:00")
+                                    )}
+                                  </td>
+                                  <td className="max-w-[240px] px-3 py-2.5">
+                                    <p className="line-clamp-2 text-xs text-muted-foreground">
+                                      {entry.beschreibungProblem || "—"}
+                                    </p>
+                                  </td>
+                                  <td className="px-3 py-2.5">
+                                    <span
+                                      className={cn(
+                                        "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                                        PRIORITY_BADGE[entry.prioritaet] ??
+                                          "bg-muted text-muted-foreground"
+                                      )}
+                                    >
                                       {PRIORITY_LABEL[entry.prioritaet] ?? entry.prioritaet}
-                                    </SelectValue>
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {Object.entries(PRIORITY_LABEL).map(([v, l]) => (
-                                      <SelectItem key={v} value={v}>{l}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                              <td
-                                className="px-3 py-2.5"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Select
-                                  value={entry.status}
-                                  onValueChange={(v) => v && changeStatus(entry.id, v)}
-                                >
-                                  <SelectTrigger
-                                    className={cn(
-                                      "h-7 w-36 border-0 bg-transparent px-2 text-xs font-medium shadow-none focus:ring-0",
-                                      STATUS_BADGE[entry.status] ?? ""
-                                    )}
-                                  >
-                                    <SelectValue>
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2.5">
+                                    <span
+                                      className={cn(
+                                        "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                                        STATUS_BADGE[entry.status] ??
+                                          "bg-muted text-muted-foreground"
+                                      )}
+                                    >
                                       {entry.status.charAt(0).toUpperCase() +
                                         entry.status.slice(1)}
-                                    </SelectValue>
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {STATUS_OPTIONS.map((s) => (
-                                      <SelectItem key={s} value={s}>
-                                        {s.charAt(0).toUpperCase() + s.slice(1)}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                              <td
-                                className="px-3 py-2.5"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Select
-                                  value={entry.assigneeId ?? "niemand"}
-                                  onValueChange={(v) =>
-                                    changeAssignee(entry.id, v === "niemand" ? null : v)
-                                  }
-                                >
-                                  <SelectTrigger className="h-7 w-40 border-0 bg-transparent px-2 text-xs shadow-none focus:ring-0">
-                                    <SelectValue>
-                                      {entry.assigneeName ?? (
-                                        <span className="text-muted-foreground">
-                                          Nicht zugewiesen
-                                        </span>
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2.5">
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 text-xs"
+                                        onClick={() => setSelectedEntry({ entry, sr })}
+                                      >
+                                        Details
+                                      </Button>
+                                      {!srArchived && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 text-xs"
+                                          onClick={() =>
+                                            setConfirmArchive({
+                                              type: "entry",
+                                              id: entry.id,
+                                              label:
+                                                KATEGORIE_LABEL[entry.kategorie] ??
+                                                entry.kategorie,
+                                              archive: false,
+                                            })
+                                          }
+                                        >
+                                          <ArchiveRestore className="size-3.5" />
+                                          Wiederherstellen
+                                        </Button>
                                       )}
-                                    </SelectValue>
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="niemand">
-                                      Nicht zugewiesen
-                                    </SelectItem>
-                                    {users.map((u) => (
-                                      <SelectItem key={u.id} value={u.id}>
-                                        {u.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                              <td className="px-3 py-2.5">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 text-xs"
-                                  onClick={() => setSelectedEntry({ entry, sr })}
-                                >
-                                  Details
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {/* Detail Dialog */}
@@ -827,8 +1141,85 @@ export function AnfragenTable({
               </div>
             )}
 
+            <div className="flex justify-end pt-2">
+              {selectedEntry.entry.archived ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setConfirmArchive({
+                      type: "entry",
+                      id: selectedEntry.entry.id,
+                      label:
+                        KATEGORIE_LABEL[selectedEntry.entry.kategorie] ??
+                        selectedEntry.entry.kategorie,
+                      archive: false,
+                    });
+                  }}
+                >
+                  <ArchiveRestore className="size-3.5" />
+                  Wiederherstellen
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setConfirmArchive({
+                      type: "entry",
+                      id: selectedEntry.entry.id,
+                      label:
+                        KATEGORIE_LABEL[selectedEntry.entry.kategorie] ??
+                        selectedEntry.entry.kategorie,
+                      archive: true,
+                    });
+                  }}
+                >
+                  <Archive className="size-3.5" />
+                  Archivieren
+                </Button>
+              )}
+            </div>
           </DialogContent>
         )}
+      </Dialog>
+
+      {/* Bestätigungsdialog Archivieren / Wiederherstellen */}
+      <Dialog open={!!confirmArchive} onOpenChange={(v) => !v && setConfirmArchive(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {confirmArchive?.archive ? "Archivieren" : "Wiederherstellen"}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmArchive?.archive
+                ? confirmArchive.type === "request"
+                  ? `Die gesamte Anfrage von «${confirmArchive.label}» inkl. aller Einträge wird archiviert und im Archiv-Tab angezeigt.`
+                  : `Der Eintrag «${confirmArchive.label}» wird archiviert und im Archiv-Tab angezeigt.`
+                : confirmArchive?.type === "request"
+                ? `Die Anfrage von «${confirmArchive?.label}» wird wiederhergestellt und ist wieder im Aktiv-Tab sichtbar.`
+                : `Der Eintrag «${confirmArchive?.label}» wird wiederhergestellt und ist wieder im Aktiv-Tab sichtbar.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setConfirmArchive(null)}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleArchive}>
+              {confirmArchive?.archive ? (
+                <>
+                  <Archive className="size-3.5" />
+                  Archivieren
+                </>
+              ) : (
+                <>
+                  <ArchiveRestore className="size-3.5" />
+                  Wiederherstellen
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
       </Dialog>
     </>
   );

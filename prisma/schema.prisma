@@ -191,6 +191,7 @@ model SupportRequest {
   kontaktperson String          @default("")
   praxisKunde   String          @default("") @map("praxis_kunde")
   email         String          @default("")
+  archived      Boolean         @default(false)
   createdAt     DateTime        @default(now()) @map("created_at")
   entries       ChangeRequest[]
 
@@ -213,6 +214,7 @@ model ChangeRequest {
   assigneeId            String?              @map("assignee_id")
   assignee              User?                @relation("SupportAssignee", fields: [assigneeId], references: [id])
   screenshots           ScreenshotAttachment[]
+  archived              Boolean              @default(false)
   createdAt             DateTime             @default(now()) @map("created_at")
 
   @@index([supportRequestId])

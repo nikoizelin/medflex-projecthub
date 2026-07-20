@@ -26,6 +26,7 @@ export default async function AnfragenPage() {
     kontaktperson: sr.kontaktperson,
     praxisKunde: sr.praxisKunde,
     email: sr.email,
+    archived: sr.archived,
     createdAt: sr.createdAt.toISOString(),
     entries: sr.entries.map((e) => ({
       id: e.id,
@@ -40,6 +41,7 @@ export default async function AnfragenPage() {
       status: e.status,
       assigneeId: e.assigneeId,
       assigneeName: e.assignee?.name ?? null,
+      archived: e.archived,
       screenshots: e.screenshots.map((s) => ({
         id: s.id,
         filename: s.filename,

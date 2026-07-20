@@ -77,6 +77,16 @@ export async function updateChangeRequestPriority(id: string, prioritaet: string
   revalidatePath("/support/anfragen");
 }
 
+export async function archiveChangeRequest(id: string, archived: boolean) {
+  await prisma.changeRequest.update({ where: { id }, data: { archived } });
+  revalidatePath("/support/anfragen");
+}
+
+export async function archiveSupportRequest(id: string, archived: boolean) {
+  await prisma.supportRequest.update({ where: { id }, data: { archived } });
+  revalidatePath("/support/anfragen");
+}
+
 export async function updateChangeRequestAssignee(id: string, assigneeId: string | null) {
   const entry = await prisma.changeRequest.update({
     where: { id },
