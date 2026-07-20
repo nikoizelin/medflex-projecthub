@@ -39,9 +39,10 @@ model User {
   projects        Project[]
   tickets         Ticket[]         @relation("TicketCreator")
   assignedTickets Ticket[]         @relation("TicketAssignee")
-  statReports     StatReport[]
-  comments        ProjectComment[]
-  ticketComments  TicketComment[]
+  statReports              StatReport[]
+  comments                 ProjectComment[]
+  ticketComments           TicketComment[]
+  assignedSupportEntries   ChangeRequest[]  @relation("SupportAssignee")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -184,21 +185,54 @@ model ProjectComment {
   @@index([projectId])
 }
 
-/// Öffentliches Kunden-Änderungsformular (kein Login erforderlich)
-model ChangeRequest {
-  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  kontaktperson         String   @default("")
-  praxisKunde           String   @default("") @map("praxis_kunde")
-  datum                 DateTime @db.Date
-  prioritaet            String   @default("mittel")
-  beschreibungProblem   String   @default("") @map("beschreibung_problem")
-  linkAnfrage           String   @default("") @map("link_anfrage")
-  fehlerhaftesVerhalten String   @default("") @map("fehlerhaftes_verhalten")
-  erwartesVerhalten     String   @default("") @map("erwartes_verhalten")
-  status                String   @default("offen")
-  createdAt             DateTime @default(now()) @map("created_at")
+/// Übergeordnete Support-Anfrage: Kontaktdaten des Kunden (Wrapper für mehrere Einträge)
+model SupportRequest {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kontaktperson String          @default("")
+  praxisKunde   String          @default("") @map("praxis_kunde")
+  email         String          @default("")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  entries       ChangeRequest[]
 
+  @@map("support_requests")
+}
+
+/// Einzelner Eintrag (Sub-Ticket) innerhalb einer Support-Anfrage
+model ChangeRequest {
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supportRequestId      String               @map("support_request_id") @db.Uuid
+  supportRequest        SupportRequest       @relation(fields: [supportRequestId], references: [id], onDelete: Cascade)
+  datum                 DateTime             @db.Date
+  kategorie             String               @default("sonstiges")
+  prioritaet            String               @default("mittel")
+  beschreibungProblem   String               @default("") @map("beschreibung_problem")
+  linkAnfrage           String               @default("") @map("link_anfrage")
+  fehlerhaftesVerhalten String               @default("") @map("fehlerhaftes_verhalten")
+  erwartesVerhalten     String               @default("") @map("erwartes_verhalten")
+  status                String               @default("offen")
+  assigneeId            String?              @map("assignee_id")
+  assignee              User?                @relation("SupportAssignee", fields: [assigneeId], references: [id])
+  kommentar             String               @default("")
+  screenshots           ScreenshotAttachment[]
+  createdAt             DateTime             @default(now()) @map("created_at")
+
+  @@index([supportRequestId])
+  @@index([assigneeId])
   @@map("change_requests")
+}
+
+/// Screenshot-Anhang pro Eintrag (base64-kodiert)
+model ScreenshotAttachment {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  changeRequestId String        @map("change_request_id") @db.Uuid
+  changeRequest   ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+  filename        String
+  mimeType        String        @default("image/png") @map("mime_type")
+  data            String
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  @@index([changeRequestId])
+  @@map("screenshot_attachments")
 }
 
 /// Eintrag im Testing-Protokoll eines Projekts
