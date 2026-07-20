@@ -104,7 +104,7 @@ function LinkInfoTooltip() {
         <div className="absolute left-0 top-5 z-50 w-72 rounded-lg border bg-popover p-3 shadow-md text-xs text-popover-foreground">
           <p className="font-medium mb-1">So finden Sie den Link:</p>
           <p className="text-muted-foreground">
-            Den genauen Erklärungstext bestimmen wir noch — bitte kurz leer lassen.
+            Wenn Sie eine Anfrage im MedFlex Anfragemanagement öffnen, finden Sie die URL in der Adressleiste Ihres Browsers. Kopieren Sie diese und fügen Sie sie hier ein.
           </p>
         </div>
       )}
@@ -292,13 +292,15 @@ export function ChangeRequestForm() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
-            <Field label="Kategorie (was ist betroffen)" required>
+            <Field label="Kategorie" required>
               <Select
                 value={entry.kategorie}
                 onValueChange={(v) => v && updateEntry(i, { kategorie: v })}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {KATEGORIE_OPTIONS.find((o) => o.value === entry.kategorie)?.label ?? entry.kategorie}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {KATEGORIE_OPTIONS.map((o) => (
@@ -348,7 +350,7 @@ export function ChangeRequestForm() {
                   onChange={(e) =>
                     updateEntry(i, { fehlerhaftesVerhalten: e.target.value })
                   }
-                  placeholder="Was passiert aktuell? Wie äussert sich das fehlerhafte Verhalten?"
+                  placeholder="Wie äussert sich das fehlerhafte Verhalten?"
                   rows={3}
                 />
               </Field>
