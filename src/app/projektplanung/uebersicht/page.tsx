@@ -3,7 +3,8 @@ import { PHASE_NAMES, getActivePhaseIndex } from "@/lib/schedule";
 import { ProjectOverview } from "./project-overview";
 
 export default async function UebersichtPage() {
-  const projects = await prisma.project.findMany({
+  const [projects, users] = await Promise.all([
+  prisma.project.findMany({
     select: {
       id: true,
       name: true,
@@ -14,7 +15,9 @@ export default async function UebersichtPage() {
       checklist: { select: { order: true, checked: true } },
     },
     orderBy: { createdAt: "asc" },
-  });
+  }),
+  prisma.user.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
 
   const data = projects.map((p) => {
     const total = p.checklist.length;
@@ -34,5 +37,5 @@ export default async function UebersichtPage() {
     };
   });
 
-  return <ProjectOverview projects={data} />;
+  return <ProjectOverview projects={data} users={users} />;
 }

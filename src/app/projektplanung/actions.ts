@@ -12,10 +12,13 @@ import {
 
 export async function createProject(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
+  const ownerIdRaw = String(formData.get("ownerId") ?? "").trim();
   if (!name) return;
 
   const user = await getCurrentUser();
   if (!user) return;
+
+  const ownerId = ownerIdRaw || user.id;
 
   const projectCount = await prisma.project.count();
   const color = PALETTE[projectCount % PALETTE.length];
@@ -24,7 +27,7 @@ export async function createProject(formData: FormData) {
     data: {
       name,
       color,
-      ownerId: user.id,
+      ownerId,
       checklist: {
         create: baseChecklist.map((label, i) => ({ label, order: i, checked: false })),
       },
@@ -36,9 +39,9 @@ export async function createProject(formData: FormData) {
 
 export async function updateProject(
   projectId: string,
-  data: { name?: string; color?: string }
+  data: { name?: string; color?: string; ownerId?: string }
 ) {
-  const update: { name?: string; color?: string } = {};
+  const update: { name?: string; color?: string; ownerId?: string } = {};
 
   if (data.name !== undefined) {
     const name = data.name.trim();
@@ -49,6 +52,10 @@ export async function updateProject(
   if (data.color !== undefined) {
     if (!PALETTE.includes(data.color as (typeof PALETTE)[number])) return;
     update.color = data.color;
+  }
+
+  if (data.ownerId !== undefined) {
+    update.ownerId = data.ownerId;
   }
 
   if (Object.keys(update).length === 0) return;
@@ -212,6 +219,15 @@ export async function createProjectComment(projectId: string, message: string) {
     data: { projectId, authorId: user.id, message: trimmed },
   });
 
+  revalidatePath(`/projektplanung/projekte/${projectId}`);
+}
+
+export async function reorderChecklistItems(projectId: string, orderedIds: string[]) {
+  await Promise.all(
+    orderedIds.map((id, index) =>
+      prisma.checklistItem.update({ where: { id }, data: { order: index } })
+    )
+  );
   revalidatePath(`/projektplanung/projekte/${projectId}`);
 }
 

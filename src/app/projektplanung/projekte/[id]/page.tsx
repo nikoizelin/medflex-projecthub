@@ -13,7 +13,8 @@ export default async function ProjectDetailPage({
   const { id } = await params;
   const currentUser = await getCurrentUser();
 
-  const project = await prisma.project.findUnique({
+  const [project, users] = await Promise.all([
+  prisma.project.findUnique({
     where: { id },
     select: {
       id: true,
@@ -23,6 +24,7 @@ export default async function ProjectDetailPage({
       startDate: true,
       deadline: true,
       calculated: true,
+      ownerId: true,
       owner: { select: { name: true } },
       checklist: {
         select: { id: true, label: true, checked: true, order: true },
@@ -43,7 +45,9 @@ export default async function ProjectDetailPage({
         orderBy: { createdAt: "desc" },
       },
     },
-  });
+  }),
+  prisma.user.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
 
   if (!project) notFound();
 
@@ -63,6 +67,7 @@ export default async function ProjectDetailPage({
           name: project.name,
           status: project.status,
           color: project.color,
+          ownerId: project.ownerId,
           ownerName: project.owner.name,
           startDate: project.startDate?.toISOString() ?? null,
           deadline: project.deadline?.toISOString() ?? null,
@@ -88,6 +93,7 @@ export default async function ProjectDetailPage({
             authorName: c.author.name,
           })),
         }}
+        users={users}
         currentUserId={currentUser?.id ?? ""}
         currentUserName={currentUser?.name ?? "Unbekannt"}
       />

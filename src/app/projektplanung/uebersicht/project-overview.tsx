@@ -47,6 +47,11 @@ interface ProjectListItem {
   phaseLabel: string;
 }
 
+interface UserItem {
+  id: string;
+  name: string;
+}
+
 const STATUS_LABEL: Record<ProjectStatus, string> = {
   LAUFEND: "Laufend",
   PAUSIERT: "Pausiert",
@@ -64,10 +69,11 @@ const STATUS_FILTER_LABEL: Record<"alle" | ProjectStatus, string> = {
   ...STATUS_LABEL,
 };
 
-export function ProjectOverview({ projects }: { projects: ProjectListItem[] }) {
+export function ProjectOverview({ projects, users }: { projects: ProjectListItem[]; users: UserItem[] }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"alle" | ProjectStatus>("alle");
   const [open, setOpen] = useState(false);
+  const [selectedOwnerId, setSelectedOwnerId] = useState("");
 
   const filtered = useMemo(() => {
     return projects.filter((p) => {
@@ -94,12 +100,37 @@ export function ProjectOverview({ projects }: { projects: ProjectListItem[] }) {
               action={async (formData) => {
                 await createProject(formData);
                 setOpen(false);
+                setSelectedOwnerId("");
               }}
               className="flex flex-col gap-3"
             >
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="name">Projektname</Label>
                 <Input id="name" name="name" placeholder="z. B. Klinik Lindenhof" required />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="ownerId">Verantwortliche/r</Label>
+                <input type="hidden" name="ownerId" value={selectedOwnerId} />
+                <Select
+                  value={selectedOwnerId}
+                  onValueChange={(v) => v && setSelectedOwnerId(v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue>
+                      {selectedOwnerId
+                        ? users.find((u) => u.id === selectedOwnerId)?.name ?? "Auswählen…"
+                        : "Aktueller Benutzer (Standard)"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Aktueller Benutzer (Standard)</SelectItem>
+                    {users.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <DialogFooter>
                 <DialogClose render={<Button type="button" variant="outline" />}>

@@ -77,31 +77,36 @@ export function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
-/** Der 20-Schritte-Ablauf: Stabsübergabe → Finales Go-Live */
+/** Der 25-Schritte-Ablauf: Stabsübergabe → Finales GoLive */
 export const scheduleSteps: ScheduleStepDefinition[] = [
-  { name: "Stabsübergabe", dur: 0 },
-  { name: "Infobogen & Samples senden", dur: 0 },
-  { name: "Account erstellen", gap: 3, dur: 7 },
-  { name: "Telefonanbieter kontaktieren", gap: 2, dur: 0 },
-  { name: "Anfragemodul-Meeting", gap: 1, dur: 0 },
-  { name: "Kick-off (Projektstart)", gap: 3, dur: 0 },
-  { name: "Erster Entwurf TA + ElevenLabs Konfiguration", dur: 14 },
-  { name: "KI-Chat-Workflow erstellen", dur: 7, sameStartAs: 6 },
-  { name: "Flyer erstellen", dur: 0, sameStartAs: 6 },
-  { name: "Websiteentwurf & Telefonie-Abklärung", gap: 1, dur: 0 },
-  { name: "Schulung durchführen", dur: 0, startFrom: 6, gapFromStart: 21 },
-  { name: "Prompt-Feintuning & Testing", dur: 14 },
-  { name: "Besprechung Testergebnisse", dur: 0 },
-  { name: "Meeting Website-Anpassungen & Vertragsstart", gap: 1, dur: 0 },
-  { name: "Testnummer versenden", gap: 3, dur: 0 },
-  { name: "Testphase Kunde", dur: 7 },
-  { name: "Erstes Go-Live", dur: 0, startFrom: 12, gapFromStart: 4 },
-  { name: "Zweites Go-Live", gap: 3, dur: 0 },
-  { name: "Drittes Go-Live", gap: 3, dur: 1 },
-  { name: "Finales Go-Live", gap: 1, dur: 0 },
+  { name: "Stabsübergabe", dur: 0 },                                                //  0 – 1T
+  { name: "Infobogen & Voice Samples senden", dur: 0 },                             //  1 – 1T
+  { name: "Kickoff planen", dur: 0 },                                               //  2 – 1T
+  { name: "Telefonanbieter kontaktieren", dur: 0 },                                 //  3 – 1T
+  { name: "Account erstellen", dur: 7 },                                             //  4 – 8T
+  { name: "Kickoff durchführen", dur: 0 },                                           //  5 – 1T
+  { name: "Vorstellung schriftliche Kontaktmöglichkeiten", dur: 0 },                 //  6 – 1T
+  { name: "Erster Entwurf TA & KB erstellen + 11Labs konfigurieren", dur: 13 },     //  7 – 14T
+  { name: "KI-Chat/Anfrageformular konfigurieren", dur: 5 },                        //  8 – 6T
+  { name: "Websiteänderungen und Marketingmaterial entwerfen", dur: 0 },             //  9 – 1T
+  { name: "Telefonieabklärungen und Aufsetzung", dur: 0 },                          // 10 – 1T
+  { name: "FAQ + Chat-Testseite senden", dur: 0 },                                  // 11 – 1T
+  { name: "Schulungstermin planen", dur: 0 },                                        // 12 – 1T
+  { name: "Logins und Accounts versenden", dur: 0 },                                 // 13 – 1T
+  { name: "Schulung durchführen", dur: 0 },                                           // 14 – 1T
+  { name: "Prompt Finetuning und Finalisierung", dur: 3 },                           // 15 – 4T
+  { name: "Testing durchführen", dur: 1 },                                            // 16 – 2T
+  { name: "Start Schriftverkehr (Update Website)", dur: 0 },                          // 17 – 1T
+  { name: "Testnummer TA senden + Testphase", dur: 6 },                              // 18 – 7T
+  { name: "Telefonie bei Kunden einrichten", dur: 0 },                               // 19 – 1T
+  { name: "Besprechung der Tests durchführen & Terminierung 1. GoLive", dur: 0 },   // 20 – 1T
+  { name: "1. GoLive + Nachbesprechung", dur: 1 },                                   // 21 – 2T
+  { name: "2. GoLive + Nachbesprechung", dur: 1 },                                   // 22 – 2T
+  { name: "3. GoLive + Nachbesprechung", dur: 0 },                                   // 23 – 1T
+  { name: "Finales GoLive + Nachbesprechung", dur: 0 },                              // 24 – 1T
 ];
 
-/** Berechnet alle 22 Schedule-Steps ausgehend vom gewählten Startdatum. */
+/** Berechnet alle Schedule-Steps ausgehend vom gewählten Startdatum. */
 export function calculateSchedule(startDate: Date): ComputedScheduleStep[] {
   const start = new Date(startDate);
   const computed: ComputedScheduleStep[] = [];
@@ -135,42 +140,37 @@ export function computeDeadline(steps: ComputedScheduleStep[]): Date {
   return deadline;
 }
 
-/** Die 34 vordefinierten Checklisten-Punkte */
+/** Die 29 vordefinierten Checklisten-Punkte */
 export const baseChecklist: string[] = [
-  "Infobogen / Samples gesendet",
-  "Infos erhalten",
-  "Account erstellt",
-  "TA auf ElevenLabs erstellt",
-  "Termin für Kick-off geplant",
-  "Kontakt mit Telefonanbieter aufgenommen",
-  "Meeting zur Präsentation der Schriftlichkeit durchgeführt",
-  "Kick-off durchgeführt",
-  "Anfragetypen / Texte gesendet und bestätigt",
-  "Agent auf ElevenLabs konfiguriert",
-  "Erster TA gestartet",
-  "KI-Chat-Workflow erstellt",
-  "Erster Entwurf TA fertig + Knowledgebase",
-  "Schulung geplant",
-  "Testing TA gestartet",
-  "Flyer erstellt",
-  "Websiteentwurf erstellt",
-  "FAQ / News / Hinweise erstellt",
-  "Telefonie & Website fertiggestellt",
-  "Schulung durchgeführt",
-  "Pressekit / Flyer versendet",
-  "Prompt-Feintuning abgeschlossen",
-  "Testanfragemodul & KI-Chat versendet",
-  "Testnummer versendet",
-  "Terminfunktion Website implementiert",
-  "Schriftverkehr gestartet",
-  "Besprechung TA-Tests",
-  "Erstes Go-Live geplant",
-  "Zweites Go-Live geplant",
-  "Drittes Go-Live geplant",
-  "Finales Go-Live",
-  "Monitoring",
-  "Nachbesprechung nach einem Monat",
-  "Statistikbesprechung",
+  "Infobogen & Voice Samples senden",                                          //  0
+  "Infobogen erhalten",                                                         //  1
+  "Kickoff planen",                                                             //  2
+  "Telefonanbieter kontaktieren",                                               //  3
+  "Account erstellen",                                                          //  4  → Setup
+  "Kickoff durchführen",                                                        //  5  → Entwicklung
+  "Termin Vorstellung Kontaktmöglichkeiten planen",                             //  6
+  "Vorstellung schriftliche Kontaktmöglichkeiten",                              //  7
+  "Erster Entwurf TA & KB erstellen + 11Labs konfigurieren",                   //  8
+  "KI-Chat/Anfrageformular konfigurieren",                                      //  9
+  "Websiteänderungen und Marketingmaterial entwerfen",                          // 10
+  "Telefonieabklärungen und Aufsetzung",                                        // 11
+  "FAQ + Chat-Testseite senden",                                                // 12
+  "Schulungstermin planen",                                                     // 13  → Schulung
+  "Logins und Accounts versenden",                                              // 14
+  "Schulung durchführen",                                                       // 15
+  "Prompt Finetuning und Finalisierung",                                        // 16
+  "Testing durchführen",                                                        // 17
+  "Start Schriftverkehr (Update Website)",                                      // 18
+  "Testnummer TA senden",                                                       // 19
+  "Telefonie bei Kunden einrichten",                                            // 20
+  "Besprechung der Tests durchführen & Terminierung 1. GoLive",                 // 21  → Go-Live
+  "1. GoLive + Nachbesprechung",                                                // 22
+  "2. GoLive + Nachbesprechung",                                                // 23
+  "3. GoLive + Nachbesprechung",                                                // 24
+  "Finales GoLive + Nachbesprechung",                                           // 25  → Monitoring
+  "Erklärung Support",                                                          // 26
+  "Nachbesprechung nach 1 Monat Laufzeit",                                      // 27
+  "Fortlaufendes Monitoring",                                                   // 28
 ];
 
 /** Die 6 Phasen, denen die 34 Checklisten-Punkte zugeordnet werden */
@@ -188,13 +188,13 @@ export const PHASE_NAMES = [
  * Übergang in die jeweils nächste Phase auslösen. `null` für die erste Phase,
  * die immer aktiv startet.
  *
- * - Setup: "Account erstellt" (order 2)
- * - Entwicklung: "Kick-off durchgeführt" (order 7)
- * - Schulung: "Schulung geplant" (order 13)
- * - Go-Live: "Besprechung TA-Tests" (order 26)
- * - Monitoring: "Finales Go-Live" (order 30)
+ * - Setup:      "Account erstellen"    (order 4)
+ * - Entwicklung:"Kickoff durchführen"  (order 5)
+ * - Schulung:   "Schulungstermin planen" (order 13)
+ * - Go-Live:    "Besprechung der Tests & Terminierung 1. GoLive" (order 21)
+ * - Monitoring: "Finales GoLive + Nachbesprechung" (order 25)
  */
-export const PHASE_TRIGGER_ORDERS: (number | null)[] = [null, 2, 7, 13, 26, 30];
+export const PHASE_TRIGGER_ORDERS: (number | null)[] = [null, 4, 5, 13, 21, 25];
 
 /**
  * Ermittelt den Index der aktiven Phase anhand der abgehakten Checklisten-Punkte

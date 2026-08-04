@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 const FROM = "MedFlex ProjektHub <no-reply@medflex-schweiz.ch>";
 
@@ -95,7 +95,68 @@ export async function sendTicketAssignmentEmail({
 </body>
 </html>`;
 
-  await resend.emails.send({ from: FROM, to, subject, html });
+  await resend?.emails.send({ from: FROM, to, subject, html });
+}
+
+export async function sendProjectAssignmentEmail({
+  to,
+  ownerName,
+  projectName,
+  assignedByName,
+}: {
+  to: string;
+  ownerName: string;
+  projectName: string;
+  assignedByName: string;
+}) {
+  if (!process.env.RESEND_API_KEY) return;
+
+  const html = `
+<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;border:1px solid #e4e4e7;overflow:hidden;max-width:600px;width:100%;">
+        <tr>
+          <td style="background:#064b91;padding:24px 32px;">
+            <p style="margin:0;color:#ffffff;font-size:18px;font-weight:600;">MedFlex ProjektHub</p>
+            <p style="margin:4px 0 0;color:#93c5fd;font-size:13px;">Projektverantwortlichkeit</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px;">
+            <p style="margin:0 0 8px;font-size:15px;color:#09090b;">Hallo ${ownerName},</p>
+            <p style="margin:0 0 24px;font-size:14px;color:#52525b;">Du wurdest als Verantwortliche/r für ein Projekt eingesetzt.</p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;border-radius:8px;padding:20px;margin-bottom:24px;">
+              <tr>
+                <td>
+                  <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#71717a;">Projekt</p>
+                  <p style="margin:4px 0 0;font-size:17px;font-weight:600;color:#09090b;">${projectName}</p>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0;font-size:13px;color:#71717a;">Zugewiesen von: <span style="color:#09090b;font-weight:500;">${assignedByName}</span></p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 32px;border-top:1px solid #f4f4f5;">
+            <p style="margin:0;font-size:12px;color:#a1a1aa;">Diese E-Mail wurde automatisch vom MedFlex ProjektHub versendet.</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  await resend?.emails.send({
+    from: FROM,
+    to,
+    subject: `Projekt zugewiesen: ${projectName}`,
+    html,
+  });
 }
 
 const KATEGORIE_LABEL: Record<string, string> = {
@@ -176,7 +237,7 @@ export async function sendSupportAssignmentEmail({
   </table>
 </body></html>`;
 
-  await resend.emails.send({ from: FROM, to, subject, html });
+  await resend?.emails.send({ from: FROM, to, subject, html });
 }
 
 export async function sendSupportConfirmationEmail({
@@ -231,5 +292,5 @@ export async function sendSupportConfirmationEmail({
   </table>
 </body></html>`;
 
-  await resend.emails.send({ from: FROM, to, subject, html });
+  await resend?.emails.send({ from: FROM, to, subject, html });
 }
