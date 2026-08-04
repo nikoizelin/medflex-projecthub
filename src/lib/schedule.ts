@@ -82,17 +82,17 @@ export const scheduleSteps: ScheduleStepDefinition[] = [
   { name: "Stabsübergabe", dur: 0 },                                                //  0 – 1T
   { name: "Infobogen & Voice Samples senden", dur: 0 },                             //  1 – 1T
   { name: "Kickoff planen", dur: 0 },                                               //  2 – 1T
-  { name: "Telefonanbieter kontaktieren", dur: 0 },                                 //  3 – 1T
-  { name: "Account erstellen", dur: 7 },                                             //  4 – 8T
+  { name: "Telefonanbieter kontaktieren", gap: 2, dur: 0 },                         //  3 – 2T nach Kickoff planen
+  { name: "Account erstellen", startFrom: 1, gapFromStart: 5, dur: 7 },             //  4 – 1 Woche nach Infobogen, 8T Dauer
   { name: "Kickoff durchführen", dur: 0 },                                           //  5 – 1T
-  { name: "Vorstellung schriftliche Kontaktmöglichkeiten", dur: 0 },                 //  6 – 1T
+  { name: "Vorstellung schriftliche Kontaktmöglichkeiten", gap: 5, dur: 0 },         //  6 – 1 Woche nach Kickoff
   { name: "Erster Entwurf TA & KB erstellen + 11Labs konfigurieren", dur: 13 },     //  7 – 14T
   { name: "KI-Chat/Anfrageformular konfigurieren", dur: 5 },                        //  8 – 6T
   { name: "Websiteänderungen und Marketingmaterial entwerfen", dur: 0 },             //  9 – 1T
-  { name: "Telefonieabklärungen und Aufsetzung", dur: 0 },                          // 10 – 1T
-  { name: "FAQ + Chat-Testseite senden", dur: 0 },                                  // 11 – 1T
+  { name: "FAQ + Chat-Testseite senden", dur: 0 },                                  // 10 – 1T
+  { name: "Telefonieabklärungen und Aufsetzung", gap: 1, dur: 0 },                  // 11 – 1T nach FAQ & Marketing
   { name: "Schulungstermin planen", dur: 0 },                                        // 12 – 1T
-  { name: "Logins und Accounts versenden", dur: 0 },                                 // 13 – 1T
+  { name: "Logins und Accounts versenden", gap: 5, dur: 0 },                        // 13 – 1 Woche nach Schulungstermin
   { name: "Schulung durchführen", dur: 0 },                                           // 14 – 1T
   { name: "Prompt Finetuning und Finalisierung", dur: 3 },                           // 15 – 4T
   { name: "Testing durchführen", dur: 1 },                                            // 16 – 2T
@@ -102,7 +102,7 @@ export const scheduleSteps: ScheduleStepDefinition[] = [
   { name: "Besprechung der Tests durchführen & Terminierung 1. GoLive", dur: 0 },   // 20 – 1T
   { name: "1. GoLive + Nachbesprechung", dur: 1 },                                   // 21 – 2T
   { name: "2. GoLive + Nachbesprechung", dur: 1 },                                   // 22 – 2T
-  { name: "3. GoLive + Nachbesprechung", dur: 0 },                                   // 23 – 1T
+  { name: "3. GoLive + Nachbesprechung", dur: 1 },                                   // 23 – 2T
   { name: "Finales GoLive + Nachbesprechung", dur: 0 },                              // 24 – 1T
 ];
 
