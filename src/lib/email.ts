@@ -240,6 +240,83 @@ export async function sendSupportAssignmentEmail({
   await resend?.emails.send({ from: FROM, to, subject, html });
 }
 
+export async function sendSupportInternalNotificationEmail({
+  contactName,
+  praxisKunde,
+  email,
+  entries,
+}: {
+  contactName: string;
+  praxisKunde: string;
+  email: string;
+  entries: { kategorie: string; beschreibungProblem: string; datum: string }[];
+}) {
+  if (!process.env.RESEND_API_KEY) return;
+
+  const subject = `Neue Supportanfrage: ${praxisKunde}`;
+
+  const entryRows = entries
+    .map((e, i) => {
+      const datumFormatted = new Date(e.datum + "T00:00:00").toLocaleDateString("de-CH", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      return `
+    <tr><td style="padding:12px 0;border-top:1px solid #e4e4e7;">
+      <p style="margin:0;font-size:13px;font-weight:600;color:#09090b;">${i + 1}. ${KATEGORIE_LABEL[e.kategorie] ?? e.kategorie} · ${datumFormatted}</p>
+      <p style="margin:6px 0 0;font-size:13px;color:#52525b;white-space:pre-wrap;">${e.beschreibungProblem}</p>
+    </td></tr>`;
+    })
+    .join("");
+
+  const html = `
+<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;border:1px solid #e4e4e7;overflow:hidden;max-width:600px;width:100%;">
+        <tr><td style="background:#064b91;padding:24px 32px;">
+          <p style="margin:0;color:#fff;font-size:18px;font-weight:600;">MedFlex ProjektHub</p>
+          <p style="margin:4px 0 0;color:#93c5fd;font-size:13px;">Neue Supportanfrage eingegangen</p>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 24px;font-size:14px;color:#52525b;">Eine neue Supportanfrage wurde über das Kundenformular übermittelt.</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;border-radius:8px;padding:20px;margin-bottom:24px;">
+            <tr><td style="padding-bottom:10px;">
+              <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;color:#71717a;">Praxis / Kunde</p>
+              <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#09090b;">${praxisKunde}</p>
+            </td></tr>
+            <tr><td style="padding-bottom:10px;">
+              <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;color:#71717a;">Kontaktperson</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#3f3f46;">${contactName}</p>
+            </td></tr>
+            <tr><td>
+              <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;color:#71717a;">E-Mail</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#3f3f46;"><a href="mailto:${email}" style="color:#064b91;">${email}</a></p>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#09090b;">Einträge (${entries.length})</p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            ${entryRows}
+          </table>
+        </td></tr>
+        <tr><td style="padding:16px 32px;border-top:1px solid #f4f4f5;">
+          <p style="margin:0;font-size:12px;color:#a1a1aa;">Diese E-Mail wurde automatisch vom MedFlex ProjektHub versendet.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  await resend?.emails.send({
+    from: FROM,
+    to: "onboarding@medflex-schweiz.ch",
+    subject,
+    html,
+  });
+}
+
 export async function sendSupportConfirmationEmail({
   to,
   contactName,

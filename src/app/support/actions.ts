@@ -56,8 +56,16 @@ export async function submitSupportRequest(
     },
   });
 
+  const { sendSupportConfirmationEmail, sendSupportInternalNotificationEmail } = await import("@/lib/email");
+
+  await sendSupportInternalNotificationEmail({
+    contactName: contact.kontaktperson,
+    praxisKunde: contact.praxisKunde,
+    email: contact.email,
+    entries,
+  }).catch(() => {});
+
   if (contact.email) {
-    const { sendSupportConfirmationEmail } = await import("@/lib/email");
     await sendSupportConfirmationEmail({
       to: contact.email,
       contactName: contact.kontaktperson,

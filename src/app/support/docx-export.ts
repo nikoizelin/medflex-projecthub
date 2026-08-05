@@ -99,6 +99,18 @@ function row(label: string, value: string, highlight = false): TableRow {
   return new TableRow({ children: [labelCell(label), valueCell(value, highlight)] });
 }
 
+function contactTable(entry: ExportEntry): Table {
+  return new Table({
+    width: { size: CELL_W, type: WidthType.DXA },
+    columnWidths: [LABEL_W, VALUE_W],
+    rows: [
+      row("Kontaktperson", entry.kontaktperson),
+      row("Praxis / Kunde", entry.praxisKunde),
+      row("E-Mail", entry.email),
+    ],
+  });
+}
+
 function entryTable(entry: ExportEntry): Table {
   const dateLabel = entry.datum
     ? new Date(entry.datum + "T00:00:00").toLocaleDateString("de-CH", {
@@ -108,20 +120,30 @@ function entryTable(entry: ExportEntry): Table {
       })
     : "—";
 
-  const rows = [
-    row("Kontaktperson", entry.kontaktperson),
-    row("Praxis / Kunde", entry.praxisKunde),
-    row("E-Mail", entry.email),
+  const kat = entry.kategorie;
+
+  const rows: TableRow[] = [
     row("Datum", dateLabel),
-    row("Kategorie", KATEGORIE_LABEL[entry.kategorie] ?? entry.kategorie),
+    row("Kategorie", KATEGORIE_LABEL[kat] ?? kat),
     row("Priorität", PRIORITY_LABEL[entry.prioritaet] ?? entry.prioritaet),
     row("Status", entry.status.charAt(0).toUpperCase() + entry.status.slice(1)),
-    row("Beschreibung des Problems", entry.beschreibungProblem),
-    row("Link der Anfrage", entry.linkAnfrage),
-    row("Fehlerhaftes Verhalten", entry.fehlerhaftesVerhalten),
-    row("Erwartetes Verhalten", entry.erwartesVerhalten),
-    row("Kommentar", entry.kommentar, true),
   ];
+
+  if (kat === "featurewunsch") {
+    rows.push(row("Feature Wunsch", entry.beschreibungProblem));
+    if (entry.fehlerhaftesVerhalten) rows.push(row("Sonstiges", entry.fehlerhaftesVerhalten));
+  } else if (kat === "sonstiges") {
+    rows.push(row("Beschreibung", entry.beschreibungProblem));
+  } else {
+    rows.push(row("Beschreibung des Problems", entry.beschreibungProblem));
+    if (kat !== "medflex-app" && entry.linkAnfrage) {
+      rows.push(row("Link der Anfrage", entry.linkAnfrage));
+    }
+    if (entry.fehlerhaftesVerhalten) rows.push(row("Fehlerhaftes Verhalten", entry.fehlerhaftesVerhalten));
+    if (entry.erwartesVerhalten) rows.push(row("Erwartetes Verhalten", entry.erwartesVerhalten));
+  }
+
+  rows.push(row("Kommentar", entry.kommentar, true));
 
   return new Table({
     width: { size: CELL_W, type: WidthType.DXA },
@@ -131,11 +153,15 @@ function entryTable(entry: ExportEntry): Table {
 }
 
 export async function generateChangeRequestDocx(entries: ExportEntry[]) {
+  if (!entries.length) return;
+
   const now = new Date().toLocaleDateString("de-CH", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
+
+  const first = entries[0];
 
   const sections: (Paragraph | Table)[] = [
     new Paragraph({
@@ -158,18 +184,25 @@ export async function generateChangeRequestDocx(entries: ExportEntry[]) {
       children: [new TextRun({ text: `Erstellt am: ${now}`, size: 18, color: "94A3B8" })],
       spacing: { after: 300 },
     }),
+    // Contact info — only once
+    new Paragraph({
+      text: "Kontaktangaben",
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 0, after: 160 },
+    }),
+    contactTable(first),
+    new Paragraph({ children: [new PageBreak()] }),
   ];
 
   entries.forEach((entry, i) => {
-    const titleText =
-      [entry.praxisKunde, entry.kontaktperson].filter(Boolean).join(" · ") || `Eintrag ${i + 1}`;
     const kategorieText = KATEGORIE_LABEL[entry.kategorie] ?? entry.kategorie;
+    const titleText = entry.praxisKunde || `Eintrag ${i + 1}`;
 
     sections.push(
       new Paragraph({
-        text: `${i + 1}. ${titleText} — ${kategorieText}`,
+        text: `${i + 1}. ${titleText} – ${kategorieText}`,
         heading: HeadingLevel.HEADING_2,
-        spacing: { before: i === 0 ? 0 : 400, after: 160 },
+        spacing: { before: 0, after: 160 },
       }),
       entryTable(entry)
     );

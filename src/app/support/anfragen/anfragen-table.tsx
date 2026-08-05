@@ -1109,28 +1109,39 @@ export function AnfragenTable({
               <DetailRow label="Kontaktperson" value={selectedEntry.sr.kontaktperson} />
               <DetailRow label="Praxis / Kunde" value={selectedEntry.sr.praxisKunde} />
               <DetailRow label="E-Mail" value={selectedEntry.sr.email} />
-              <DetailRow label="Beschreibung" value={selectedEntry.entry.beschreibungProblem} />
-              <DetailRow
-                label="Fehlerhaftes Verhalten"
-                value={selectedEntry.entry.fehlerhaftesVerhalten}
-              />
-              <DetailRow
-                label="Erwartetes Verhalten"
-                value={selectedEntry.entry.erwartesVerhalten}
-              />
-              {selectedEntry.entry.linkAnfrage && (
-                <div className="grid grid-cols-[160px_1fr] gap-3 border-t py-2.5">
-                  <p className="text-xs font-medium text-muted-foreground">Link</p>
-                  <a
-                    href={selectedEntry.entry.linkAnfrage}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
-                    {selectedEntry.entry.linkAnfrage}
-                    <ExternalLink className="size-3" />
-                  </a>
-                </div>
+              {selectedEntry.entry.kategorie === "featurewunsch" ? (
+                <>
+                  <DetailRow label="Feature Wunsch" value={selectedEntry.entry.beschreibungProblem} />
+                  {selectedEntry.entry.fehlerhaftesVerhalten && (
+                    <DetailRow label="Sonstiges" value={selectedEntry.entry.fehlerhaftesVerhalten} />
+                  )}
+                </>
+              ) : selectedEntry.entry.kategorie === "sonstiges" ? (
+                <DetailRow label="Beschreibung" value={selectedEntry.entry.beschreibungProblem} />
+              ) : (
+                <>
+                  <DetailRow label="Beschreibung" value={selectedEntry.entry.beschreibungProblem} />
+                  {selectedEntry.entry.fehlerhaftesVerhalten && (
+                    <DetailRow label="Fehlerhaftes Verhalten" value={selectedEntry.entry.fehlerhaftesVerhalten} />
+                  )}
+                  {selectedEntry.entry.erwartesVerhalten && (
+                    <DetailRow label="Erwartetes Verhalten" value={selectedEntry.entry.erwartesVerhalten} />
+                  )}
+                  {selectedEntry.entry.kategorie === "telefonassistent" && selectedEntry.entry.linkAnfrage && (
+                    <div className="grid grid-cols-[160px_1fr] gap-3 border-t py-2.5">
+                      <p className="text-xs font-medium text-muted-foreground">Link</p>
+                      <a
+                        href={selectedEntry.entry.linkAnfrage}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                      >
+                        {selectedEntry.entry.linkAnfrage}
+                        <ExternalLink className="size-3" />
+                      </a>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

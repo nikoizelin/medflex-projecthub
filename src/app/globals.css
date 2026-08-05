@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *):not(:is(.form-light-override, .form-light-override *)));
 
 @theme inline {
   --color-background: var(--background);
@@ -115,6 +115,29 @@
   --sidebar-accent-foreground: oklch(0.92 0.008 250);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.6 0.03 255);
+}
+
+/* Force light theme on a subtree (overrides inherited .dark variables) */
+.form-light-override {
+  --background: oklch(0.985 0.004 250);
+  --foreground: oklch(0.27 0.02 256);
+  --card: oklch(0.995 0.003 250);
+  --card-foreground: oklch(0.27 0.02 256);
+  --popover: oklch(0.995 0.003 250);
+  --popover-foreground: oklch(0.27 0.02 256);
+  --primary: oklch(0.34 0.04 256);
+  --primary-foreground: oklch(0.98 0.004 250);
+  --secondary: oklch(0.955 0.008 250);
+  --secondary-foreground: oklch(0.34 0.04 256);
+  --muted: oklch(0.955 0.008 250);
+  --muted-foreground: oklch(0.53 0.02 255);
+  --accent: oklch(0.93 0.014 252);
+  --accent-foreground: oklch(0.34 0.04 256);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.91 0.008 250);
+  --input: oklch(0.91 0.008 250);
+  --ring: oklch(0.62 0.05 255);
+  color-scheme: light;
 }
 
 @layer base {

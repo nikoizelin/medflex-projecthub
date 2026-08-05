@@ -18,8 +18,8 @@ import { submitSupportRequest, type ContactInfo, type ChangeRequestEntryInput } 
 const KATEGORIE_OPTIONS = [
   { value: "telefonassistent", label: "Telefonassistent" },
   { value: "medflex-app", label: "MedFlex App" },
-  { value: "sonstiges", label: "Sonstiges" },
   { value: "featurewunsch", label: "Featurewunsch" },
+  { value: "sonstiges", label: "Sonstiges" },
 ];
 
 const KATEGORIE_BADGE: Record<string, string> = {
@@ -51,7 +51,7 @@ interface EntryState {
 function emptyEntry(): EntryState {
   return {
     datum: today(),
-    kategorie: "sonstiges",
+    kategorie: "telefonassistent",
     beschreibungProblem: "",
     linkAnfrage: "",
     fehlerhaftesVerhalten: "",
@@ -104,7 +104,8 @@ function LinkInfoTooltip() {
         <div className="absolute left-0 top-5 z-50 w-72 rounded-lg border bg-popover p-3 shadow-md text-xs text-popover-foreground">
           <p className="font-medium mb-1">So finden Sie den Link:</p>
           <p className="text-muted-foreground">
-            Wenn Sie eine Anfrage im MedFlex Anfragemanagement öffnen, finden Sie die URL in der Adressleiste Ihres Browsers. Kopieren Sie diese und fügen Sie sie hier ein.
+            Wenn Sie eine Anfrage im MedFlex Anfragemanagement öffnen, finden Sie die URL in der
+            Adressleiste Ihres Browsers. Kopieren Sie diese und fügen Sie sie hier ein.
           </p>
         </div>
       )}
@@ -130,6 +131,233 @@ async function compressImage(file: File, maxWidth = 1400, quality = 0.8): Promis
   });
 }
 
+function ScreenshotUploader({
+  screenshots,
+  onAdd,
+  onRemove,
+}: {
+  screenshots: ScreenshotState[];
+  onAdd: (files: FileList) => void;
+  onRemove: (index: number) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="sm:col-span-2 flex flex-col gap-2">
+      <Label className="text-xs font-medium text-muted-foreground">
+        Screenshots (optional, max. 5)
+      </Label>
+      {screenshots.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {screenshots.map((ss, si) => (
+            <div key={si} className="group relative size-20 overflow-hidden rounded-md border">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={ss.preview} alt={ss.file.name} className="size-full object-cover" />
+              <button
+                type="button"
+                onClick={() => onRemove(si)}
+                className="absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full bg-background/90 opacity-0 shadow transition-opacity group-hover:opacity-100"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {screenshots.length < 5 && (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files) onAdd(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-fit border-dashed text-muted-foreground"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <ImagePlus className="size-4" />
+            Screenshot hinzufügen
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function EntryFields({
+  entry,
+  updateEntry,
+}: {
+  entry: EntryState;
+  index: number;
+  updateEntry: (patch: Partial<EntryState>) => void;
+}) {
+  const kat = entry.kategorie;
+
+  const addScreenshots = (files: FileList) => {
+    const current = entry.screenshots;
+    const remaining = 5 - current.length;
+    if (remaining <= 0) return;
+    const newFiles = Array.from(files).slice(0, remaining);
+    const newScreenshots: ScreenshotState[] = newFiles.map((f) => ({
+      file: f,
+      preview: URL.createObjectURL(f),
+    }));
+    updateEntry({ screenshots: [...current, ...newScreenshots] });
+  };
+
+  const removeScreenshot = (si: number) => {
+    updateEntry({ screenshots: entry.screenshots.filter((_, i) => i !== si) });
+  };
+
+  if (kat === "telefonassistent") {
+    return (
+      <>
+        <div className="sm:col-span-2">
+          <Field label="Beschreibung des Problems" required>
+            <Textarea
+              value={entry.beschreibungProblem}
+              onChange={(e) => updateEntry({ beschreibungProblem: e.target.value })}
+              placeholder="Was soll geändert werden oder was funktioniert nicht?"
+              rows={3}
+              required
+            />
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <Field label="Link der MedFlex-Anfrage (optional)" info={<LinkInfoTooltip />}>
+            <Input
+              type="url"
+              value={entry.linkAnfrage}
+              onChange={(e) => updateEntry({ linkAnfrage: e.target.value })}
+              placeholder="https://app.medflex.de/arzt/inbox/requests/…"
+            />
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <Field label="Fehlerhaftes Verhalten (optional)">
+            <Textarea
+              value={entry.fehlerhaftesVerhalten}
+              onChange={(e) => updateEntry({ fehlerhaftesVerhalten: e.target.value })}
+              placeholder="Wie äussert sich das fehlerhafte Verhalten?"
+              rows={3}
+            />
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <Field label="Erwartetes Verhalten (optional)">
+            <Textarea
+              value={entry.erwartesVerhalten}
+              onChange={(e) => updateEntry({ erwartesVerhalten: e.target.value })}
+              placeholder="Was soll stattdessen passieren?"
+              rows={3}
+            />
+          </Field>
+        </div>
+        <ScreenshotUploader
+          screenshots={entry.screenshots}
+          onAdd={addScreenshots}
+          onRemove={removeScreenshot}
+        />
+      </>
+    );
+  }
+
+  if (kat === "medflex-app") {
+    return (
+      <>
+        <div className="sm:col-span-2">
+          <Field label="Beschreibung des Problems" required>
+            <Textarea
+              value={entry.beschreibungProblem}
+              onChange={(e) => updateEntry({ beschreibungProblem: e.target.value })}
+              placeholder="Was soll geändert werden oder was funktioniert nicht?"
+              rows={3}
+              required
+            />
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <Field label="Fehlerhaftes Verhalten (optional)">
+            <Textarea
+              value={entry.fehlerhaftesVerhalten}
+              onChange={(e) => updateEntry({ fehlerhaftesVerhalten: e.target.value })}
+              placeholder="Wie äussert sich das fehlerhafte Verhalten?"
+              rows={3}
+            />
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <Field label="Erwartetes Verhalten (optional)">
+            <Textarea
+              value={entry.erwartesVerhalten}
+              onChange={(e) => updateEntry({ erwartesVerhalten: e.target.value })}
+              placeholder="Was soll stattdessen passieren?"
+              rows={3}
+            />
+          </Field>
+        </div>
+        <ScreenshotUploader
+          screenshots={entry.screenshots}
+          onAdd={addScreenshots}
+          onRemove={removeScreenshot}
+        />
+      </>
+    );
+  }
+
+  if (kat === "featurewunsch") {
+    return (
+      <>
+        <div className="sm:col-span-2">
+          <Field label="Feature Wunsch" required>
+            <Textarea
+              value={entry.beschreibungProblem}
+              onChange={(e) => updateEntry({ beschreibungProblem: e.target.value })}
+              placeholder="Beschreiben Sie das gewünschte Feature."
+              rows={4}
+              required
+            />
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <Field label="Sonstiges (optional)">
+            <Textarea
+              value={entry.fehlerhaftesVerhalten}
+              onChange={(e) => updateEntry({ fehlerhaftesVerhalten: e.target.value })}
+              placeholder="Weitere Angaben oder Anmerkungen…"
+              rows={3}
+            />
+          </Field>
+        </div>
+      </>
+    );
+  }
+
+  // sonstiges
+  return (
+    <div className="sm:col-span-2">
+      <Field label="Beschreibung" required>
+        <Textarea
+          value={entry.beschreibungProblem}
+          onChange={(e) => updateEntry({ beschreibungProblem: e.target.value })}
+          placeholder="Beschreiben Sie Ihr Anliegen."
+          rows={4}
+          required
+        />
+      </Field>
+    </div>
+  );
+}
+
 export function ChangeRequestForm() {
   const [contact, setContact] = useState<ContactInfo>({
     kontaktperson: "",
@@ -139,7 +367,6 @@ export function ChangeRequestForm() {
   const [entries, setEntries] = useState<EntryState[]>([emptyEntry()]);
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const updateContact = (patch: Partial<ContactInfo>) =>
     setContact((prev) => ({ ...prev, ...patch }));
@@ -147,26 +374,20 @@ export function ChangeRequestForm() {
   const updateEntry = (index: number, patch: Partial<EntryState>) =>
     setEntries((prev) => prev.map((e, i) => (i === index ? { ...e, ...patch } : e)));
 
+  const changeKategorie = (index: number, newKat: string) => {
+    updateEntry(index, {
+      kategorie: newKat,
+      beschreibungProblem: "",
+      linkAnfrage: "",
+      fehlerhaftesVerhalten: "",
+      erwartesVerhalten: "",
+      screenshots: [],
+    });
+  };
+
   const addEntry = () => setEntries((prev) => [...prev, emptyEntry()]);
   const removeEntry = (index: number) =>
     setEntries((prev) => prev.filter((_, i) => i !== index));
-
-  const addScreenshots = (index: number, files: FileList) => {
-    const current = entries[index].screenshots;
-    const remaining = 5 - current.length;
-    if (remaining <= 0) return;
-    const newFiles = Array.from(files).slice(0, remaining);
-    const newScreenshots: ScreenshotState[] = newFiles.map((f) => ({
-      file: f,
-      preview: URL.createObjectURL(f),
-    }));
-    updateEntry(index, { screenshots: [...current, ...newScreenshots] });
-  };
-
-  const removeScreenshot = (entryIndex: number, ssIndex: number) => {
-    const updated = entries[entryIndex].screenshots.filter((_, i) => i !== ssIndex);
-    updateEntry(entryIndex, { screenshots: updated });
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,7 +444,7 @@ export function ChangeRequestForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      {/* Kontaktbereich (einmalig) */}
+      {/* Kontaktbereich */}
       <div className="rounded-xl border bg-background shadow-sm">
         <div className="border-b px-5 py-3">
           <p className="text-sm font-semibold">Kontaktangaben</p>
@@ -295,11 +516,12 @@ export function ChangeRequestForm() {
             <Field label="Kategorie" required>
               <Select
                 value={entry.kategorie}
-                onValueChange={(v) => v && updateEntry(i, { kategorie: v })}
+                onValueChange={(v) => v && changeKategorie(i, v)}
               >
                 <SelectTrigger>
                   <SelectValue>
-                    {KATEGORIE_OPTIONS.find((o) => o.value === entry.kategorie)?.label ?? entry.kategorie}
+                    {KATEGORIE_OPTIONS.find((o) => o.value === entry.kategorie)?.label ??
+                      entry.kategorie}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -312,7 +534,7 @@ export function ChangeRequestForm() {
               </Select>
             </Field>
 
-            <Field label="Datum">
+            <Field label="Datum (optional)">
               <Input
                 type="date"
                 value={entry.datum}
@@ -320,110 +542,11 @@ export function ChangeRequestForm() {
               />
             </Field>
 
-            <div className="sm:col-span-2">
-              <Field label="Beschreibung des Problems" required>
-                <Textarea
-                  value={entry.beschreibungProblem}
-                  onChange={(e) => updateEntry(i, { beschreibungProblem: e.target.value })}
-                  placeholder="Was soll geändert werden oder was funktioniert nicht?"
-                  rows={3}
-                  required
-                />
-              </Field>
-            </div>
-
-            <div className="sm:col-span-2">
-              <Field label="Link der MedFlex-Anfrage" info={<LinkInfoTooltip />}>
-                <Input
-                  type="url"
-                  value={entry.linkAnfrage}
-                  onChange={(e) => updateEntry(i, { linkAnfrage: e.target.value })}
-                  placeholder="https://app.medflex.de/arzt/inbox/requests/…"
-                />
-              </Field>
-            </div>
-
-            <div className="sm:col-span-2">
-              <Field label="Fehlerhaftes Verhalten">
-                <Textarea
-                  value={entry.fehlerhaftesVerhalten}
-                  onChange={(e) =>
-                    updateEntry(i, { fehlerhaftesVerhalten: e.target.value })
-                  }
-                  placeholder="Wie äussert sich das fehlerhafte Verhalten?"
-                  rows={3}
-                />
-              </Field>
-            </div>
-
-            <div className="sm:col-span-2">
-              <Field label="Erwartetes Verhalten">
-                <Textarea
-                  value={entry.erwartesVerhalten}
-                  onChange={(e) => updateEntry(i, { erwartesVerhalten: e.target.value })}
-                  placeholder="Was soll stattdessen passieren?"
-                  rows={3}
-                />
-              </Field>
-            </div>
-
-            {/* Screenshots */}
-            <div className="sm:col-span-2 flex flex-col gap-2">
-              <Label className="text-xs font-medium text-muted-foreground">
-                Screenshots (max. 5)
-              </Label>
-              {entry.screenshots.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {entry.screenshots.map((ss, si) => (
-                    <div
-                      key={si}
-                      className="group relative size-20 overflow-hidden rounded-md border"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={ss.preview}
-                        alt={ss.file.name}
-                        className="size-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeScreenshot(i, si)}
-                        className="absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full bg-background/90 opacity-0 shadow transition-opacity group-hover:opacity-100"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {entry.screenshots.length < 5 && (
-                <>
-                  <input
-                    ref={(el) => {
-                      fileInputRefs.current[i] = el;
-                    }}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files) addScreenshots(i, e.target.files);
-                      e.target.value = "";
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-fit border-dashed text-muted-foreground"
-                    onClick={() => fileInputRefs.current[i]?.click()}
-                  >
-                    <ImagePlus className="size-4" />
-                    Screenshot hinzufügen
-                  </Button>
-                </>
-              )}
-            </div>
+            <EntryFields
+              entry={entry}
+              index={i}
+              updateEntry={(patch) => updateEntry(i, patch)}
+            />
           </div>
         </div>
       ))}
