@@ -412,7 +412,8 @@ export function ChangeRequestForm() {
           };
         })
       );
-      await submitSupportRequest(contact, preparedEntries);
+      const hp = (document.getElementById("_hp_name") as HTMLInputElement | null)?.value ?? "";
+      await submitSupportRequest(contact, preparedEntries, hp);
       setSubmitted(true);
     });
   };
@@ -444,6 +445,8 @@ export function ChangeRequestForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      {/* Honeypot — verstecktes Feld für Bot-Erkennung */}
+      <input id="_hp_name" name="_hp_name" type="text" tabIndex={-1} aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", overflow: "hidden" }} defaultValue="" autoComplete="off" />
       {/* Kontaktbereich */}
       <div className="rounded-xl border bg-background shadow-sm">
         <div className="border-b px-5 py-3">

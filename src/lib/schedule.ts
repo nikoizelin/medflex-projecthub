@@ -28,18 +28,20 @@ export interface ComputedScheduleStep {
 }
 
 export const PALETTE = [
-  "#185FA5",
-  "#993C1D",
-  "#0F6E56",
-  "#993556",
-  "#534AB7",
-  "#854F0B",
-  "#0E7490",
-  "#166534",
-  "#7C3AED",
-  "#B45309",
-  "#0F766E",
-  "#9F1239",
+  "#E30613",
+  "#BF375F",
+  "#BC358C",
+  "#7A368D",
+  "#283585",
+  "#4B7E9C",
+  "#4BBDBF",
+  "#00AA82",
+  "#009740",
+  "#80BA27",
+  "#C6D300",
+  "#FFED00",
+  "#F9AD00",
+  "#F07D00",
 ] as const;
 
 export function isWeekend(date: Date): boolean {

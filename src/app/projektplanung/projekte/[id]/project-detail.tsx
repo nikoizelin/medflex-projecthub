@@ -261,23 +261,21 @@ export function ProjectDetail({
           <div className="flex items-center gap-2">
             <span className="size-3.5 shrink-0 rounded-full" style={{ background: color }} />
             <h1 className="text-lg font-semibold">{name}</h1>
-            <button
-              type="button"
-              onClick={openEdit}
-              className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-              aria-label="Projekt bearbeiten"
-            >
-              <Pencil className="size-3.5" />
-            </button>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Verantwortlich: {ownerName}
           </p>
         </div>
-        <span className={cn("inline-flex h-5 items-center rounded-full px-2 text-xs font-medium", STATUS_BADGE_CLASS[displayStatus])}>
-          {STATUS_LABEL[displayStatus]}
-          {project.calculated ? ` · ${progress}%` : ""}
-        </span>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={openEdit} className="gap-1.5">
+            <Pencil className="size-3.5" />
+            Bearbeiten
+          </Button>
+          <span className={cn("inline-flex h-5 items-center rounded-full px-2 text-xs font-medium", STATUS_BADGE_CLASS[displayStatus])}>
+            {STATUS_LABEL[displayStatus]}
+            {project.calculated ? ` · ${progress}%` : ""}
+          </span>
+        </div>
       </div>
 
       <Dialog open={isEditing} onOpenChange={(v) => !v && setIsEditing(false)}>
@@ -330,7 +328,7 @@ export function ProjectDetail({
                 <Label>Status</Label>
                 <Select value={editStatus} onValueChange={(v) => v && setEditStatus(v)}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>{editStatus === "LAUFEND" ? "Laufend" : "Pausiert"}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="LAUFEND">Laufend</SelectItem>

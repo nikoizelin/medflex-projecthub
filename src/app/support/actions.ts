@@ -2,6 +2,20 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+
+const VALID_KATEGORIEN = ["telefonassistent", "medflex-app", "featurewunsch", "sonstiges"];
+
+async function getRateLimit() {
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) return null;
+  const { Ratelimit } = await import("@upstash/ratelimit");
+  const { Redis } = await import("@upstash/redis");
+  return new Ratelimit({
+    redis: Redis.fromEnv(),
+    limiter: Ratelimit.slidingWindow(5, "60 s"),
+    analytics: false,
+  });
+}
 
 export interface ContactInfo {
   kontaktperson: string;
@@ -27,9 +41,39 @@ export interface ChangeRequestEntryInput {
 
 export async function submitSupportRequest(
   contact: ContactInfo,
-  entries: ChangeRequestEntryInput[]
+  entries: ChangeRequestEntryInput[],
+  honeypot?: string
 ) {
-  if (!entries.length) return;
+  // Honeypot: bots fill hidden fields, humans don't
+  if (honeypot) return;
+
+  // Rate limiting (requires UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN)
+  const ratelimit = await getRateLimit();
+  if (ratelimit) {
+    const h = await headers();
+    const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "127.0.0.1";
+    const { success } = await ratelimit.limit(ip);
+    if (!success) throw new Error("Zu viele Anfragen. Bitte warte eine Minute.");
+  }
+
+  // Server-side validation
+  if (!contact.kontaktperson?.trim() || !contact.praxisKunde?.trim()) return;
+  if (contact.kontaktperson.length > 200 || contact.praxisKunde.length > 200) return;
+  if (contact.email && contact.email.length > 300) return;
+  if (!entries.length || entries.length > 10) return;
+
+  for (const e of entries) {
+    if (!VALID_KATEGORIEN.includes(e.kategorie)) return;
+    if (!e.beschreibungProblem?.trim() || e.beschreibungProblem.length > 10000) return;
+    if (e.linkAnfrage.length > 500) return;
+    if (e.fehlerhaftesVerhalten.length > 10000) return;
+    if (e.erwartesVerhalten.length > 10000) return;
+    if (e.screenshots.length > 5) return;
+    for (const s of e.screenshots) {
+      if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(s.mimeType)) return;
+      if (s.data.length > 4_000_000) return; // ~3 MB base64
+    }
+  }
 
   await prisma.supportRequest.create({
     data: {
