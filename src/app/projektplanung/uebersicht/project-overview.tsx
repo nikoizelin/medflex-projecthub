@@ -76,11 +76,13 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
   const [selectedOwnerId, setSelectedOwnerId] = useState("");
 
   const filtered = useMemo(() => {
-    return projects.filter((p) => {
-      if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
-      if (status !== "alle" && p.status !== status) return false;
-      return true;
-    });
+    return projects
+      .filter((p) => {
+        if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
+        if (status !== "alle" && p.status !== status) return false;
+        return true;
+      })
+      .sort((a, b) => b.progress - a.progress);
   }, [projects, search, status]);
 
   return (
