@@ -26,8 +26,10 @@ interface Project {
   steps: Step[];
 }
 
-export function ZeitplanView({ projects }: { projects: Project[] }) {
-  const [selectedId, setSelectedId] = useState(projects[0]?.id ?? "");
+export function ZeitplanView({ projects, initialId }: { projects: Project[]; initialId?: string }) {
+  const [selectedId, setSelectedId] = useState(
+    initialId && projects.some((p) => p.id === initialId) ? initialId : (projects[0]?.id ?? "")
+  );
 
   if (projects.length === 0) {
     return (

@@ -1,7 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { ZeitplanView } from "./zeitplan-view";
 
-export default async function ZeitplanPage() {
+export default async function ZeitplanPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ projekt?: string }>;
+}) {
+  const { projekt } = await searchParams;
   const projects = await prisma.project.findMany({
     where: { calculated: true },
     select: {
@@ -33,7 +38,7 @@ export default async function ZeitplanPage() {
       <p className="mb-4 text-sm text-muted-foreground">
         Berechneter Projektzeitplan je Projekt (Werktage Mo–Fr).
       </p>
-      <ZeitplanView projects={data} />
+      <ZeitplanView projects={data} initialId={projekt} />
     </div>
   );
 }

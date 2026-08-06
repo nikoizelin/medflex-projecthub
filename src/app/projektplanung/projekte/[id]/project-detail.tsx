@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { CalendarRange, FlaskConical, GripVertical, ListChecks, Pencil, Plus, UserCog } from "lucide-react";
+import { CalendarRange, FlaskConical, GripVertical, ListChecks, Pencil, Plus } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -21,8 +21,16 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select,
@@ -153,11 +161,18 @@ export function ProjectDetail({
   );
   const [newItem, setNewItem] = useState("");
   const [isPending, startTransition] = useTransition();
-  const [isEditingName, setIsEditingName] = useState(false);
   const [name, setName] = useState(project.name);
-  const [isEditingOwner, setIsEditingOwner] = useState(false);
   const [ownerId, setOwnerId] = useState(project.ownerId);
   const [ownerName, setOwnerName] = useState(project.ownerName);
+  const [color, setColor] = useState(project.color);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(project.name);
+  const [editOwnerId, setEditOwnerId] = useState(project.ownerId);
+  const [editColor, setEditColor] = useState(project.color);
+  const [editStatus, setEditStatus] = useState<string>(
+    project.status === "ABGESCHLOSSEN" ? "LAUFEND" : (project.status ?? "LAUFEND")
+  );
 
   const [checklist, applyOptimisticChecklist] = useOptimistic(
     project.checklist,
@@ -181,26 +196,30 @@ export function ProjectDetail({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const saveName = () => {
-    const trimmed = name.trim();
-    if (!trimmed || trimmed === project.name) {
-      setName(project.name);
-    } else {
-      startTransition(() => updateProject(project.id, { name: trimmed }));
-    }
-    setIsEditingName(false);
+  const openEdit = () => {
+    setEditName(name);
+    setEditOwnerId(ownerId);
+    setEditColor(color);
+    setEditStatus(project.status === "ABGESCHLOSSEN" ? "LAUFEND" : (project.status ?? "LAUFEND"));
+    setIsEditing(true);
   };
 
-  const saveOwner = (newOwnerId: string) => {
-    const user = users.find((u) => u.id === newOwnerId);
-    if (!user || newOwnerId === ownerId) {
-      setIsEditingOwner(false);
-      return;
-    }
-    setOwnerId(newOwnerId);
-    setOwnerName(user.name);
-    setIsEditingOwner(false);
-    startTransition(() => updateProject(project.id, { ownerId: newOwnerId }));
+  const saveEdit = () => {
+    const trimmedName = editName.trim() || name;
+    const newOwner = users.find((u) => u.id === editOwnerId);
+    setName(trimmedName);
+    setOwnerId(editOwnerId);
+    setOwnerName(newOwner?.name ?? ownerName);
+    setColor(editColor);
+    setIsEditing(false);
+    startTransition(() =>
+      updateProject(project.id, {
+        name: trimmedName,
+        ownerId: editOwnerId,
+        color: editColor,
+        status: editStatus,
+      })
+    );
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -239,121 +258,96 @@ export function ProjectDetail({
     <div>
       <div className="mb-3.5 flex flex-wrap items-start justify-between gap-2">
         <div>
-          <div className="group flex items-center gap-2">
-            <Popover>
-              <PopoverTrigger
-                render={
-                  <button
-                    type="button"
-                    className="size-3.5 shrink-0 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-background transition-shadow hover:ring-foreground/20"
-                    style={{ background: project.color }}
-                    aria-label="Farbe ändern"
-                  />
-                }
-              />
-              <PopoverContent className="w-auto">
-                <p className="mb-1.5 text-xs font-medium text-muted-foreground">Farbe wählen</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {PALETTE.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      className={cn(
-                        "size-6 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-popover transition-shadow hover:ring-foreground/30",
-                        color === project.color && "ring-foreground/60"
-                      )}
-                      style={{ background: color }}
-                      aria-label={color}
-                      onClick={() => startTransition(() => updateProject(project.id, { color }))}
-                    />
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-
-            {isEditingName ? (
-              <Input
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onBlur={saveName}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") saveName();
-                  if (e.key === "Escape") {
-                    setName(project.name);
-                    setIsEditingName(false);
-                  }
-                }}
-                className="h-8 text-lg font-semibold"
-              />
-            ) : (
-              <button
-                type="button"
-                className="flex items-center gap-1.5 rounded-md px-1 -mx-1 text-left hover:bg-accent"
-                onClick={() => setIsEditingName(true)}
-              >
-                <h1 className="text-lg font-semibold">{name}</h1>
-                <Pencil className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-              </button>
-            )}
+          <div className="flex items-center gap-2">
+            <span className="size-3.5 shrink-0 rounded-full" style={{ background: color }} />
+            <h1 className="text-lg font-semibold">{name}</h1>
+            <button
+              type="button"
+              onClick={openEdit}
+              className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label="Projekt bearbeiten"
+            >
+              <Pencil className="size-3.5" />
+            </button>
           </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Verantwortlich: {ownerName}
+          </p>
+        </div>
+        <span className={cn("inline-flex h-5 items-center rounded-full px-2 text-xs font-medium", STATUS_BADGE_CLASS[displayStatus])}>
+          {STATUS_LABEL[displayStatus]}
+          {project.calculated ? ` · ${progress}%` : ""}
+        </span>
+      </div>
 
-          {/* Owner editing */}
-          <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-            <span>Verantwortlich:</span>
-            {isEditingOwner ? (
-              <Select
-                value={ownerId}
-                onValueChange={(v) => v && saveOwner(v)}
-                open
-                onOpenChange={(v) => !v && setIsEditingOwner(false)}
-              >
-                <SelectTrigger className="h-6 w-44 text-xs" autoFocus>
-                  <SelectValue>{ownerName}</SelectValue>
+      <Dialog open={isEditing} onOpenChange={(v) => !v && setIsEditing(false)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Projekt bearbeiten</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-1">
+            <div className="flex flex-col gap-1.5">
+              <Label>Projektname</Label>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && saveEdit()}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Farbe</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {PALETTE.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={cn(
+                      "size-6 rounded-full ring-2 ring-transparent ring-offset-2 ring-offset-background transition-shadow hover:ring-foreground/30",
+                      c === editColor && "ring-foreground/60"
+                    )}
+                    style={{ background: c }}
+                    aria-label={c}
+                    onClick={() => setEditColor(c)}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Verantwortliche/r</Label>
+              <Select value={editOwnerId} onValueChange={(v) => v && setEditOwnerId(v)}>
+                <SelectTrigger>
+                  <SelectValue>{users.find((u) => u.id === editOwnerId)?.name ?? ownerName}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {users.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.name}
-                    </SelectItem>
+                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            ) : (
-              <button
-                type="button"
-                className="group/owner flex items-center gap-1 rounded px-0.5 hover:bg-accent hover:text-foreground"
-                onClick={() => setIsEditingOwner(true)}
-              >
-                {ownerName}
-                <UserCog className="size-3 opacity-0 transition-opacity group-hover/owner:opacity-70" />
-              </button>
+            </div>
+            {!allChecked && (
+              <div className="flex flex-col gap-1.5">
+                <Label>Status</Label>
+                <Select value={editStatus} onValueChange={(v) => v && setEditStatus(v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LAUFEND">Laufend</SelectItem>
+                    <SelectItem value="PAUSIERT">Pausiert</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             )}
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {!allChecked && (
-            <Select
-              value={project.status === "ABGESCHLOSSEN" ? "LAUFEND" : (project.status ?? "LAUFEND")}
-              onValueChange={(v) =>
-                v && startTransition(() => updateProject(project.id, { status: v }))
-              }
-            >
-              <SelectTrigger className="h-5 gap-1 border-0 bg-transparent px-0 text-xs shadow-none focus:ring-0 [&>svg]:size-3">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="LAUFEND">Laufend</SelectItem>
-                <SelectItem value="PAUSIERT">Pausiert</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-          <span className={cn("inline-flex h-5 items-center rounded-full px-2 text-xs font-medium", STATUS_BADGE_CLASS[displayStatus])}>
-            {STATUS_LABEL[displayStatus]}
-            {project.calculated ? ` · ${progress}%` : ""}
-          </span>
-        </div>
-      </div>
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="outline" />}>
+              Abbrechen
+            </DialogClose>
+            <Button onClick={saveEdit}>Speichern</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Tabs defaultValue={initialTab}>
         <TabsList className="grid w-full grid-cols-3">

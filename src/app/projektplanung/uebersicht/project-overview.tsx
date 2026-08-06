@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { CalendarRange, Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -218,14 +218,7 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
                 <p className="mt-2.5 text-xs text-muted-foreground">{p.ownerName}</p>
               )}
 
-              <Link
-                href={`/projektplanung/projekte/${p.id}?tab=zeitplan`}
-                className="absolute top-2 right-9 z-10 flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
-                aria-label={`${p.name} Zeitplan öffnen`}
-              >
-                <CalendarRange className="size-4" />
-              </Link>
-              <DeleteProjectButton projectId={p.id} projectName={p.name} />
+<DeleteProjectButton projectId={p.id} projectName={p.name} />
             </div>
           ))}
         </div>

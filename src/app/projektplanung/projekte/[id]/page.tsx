@@ -65,7 +65,7 @@ export default async function ProjectDetailPage({
           Zurück
         </Link>
         <Link
-          href="/projektplanung/zeitplan"
+          href={`/projektplanung/zeitplan?projekt=${project.id}`}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
           <CalendarRange className="size-4" />
