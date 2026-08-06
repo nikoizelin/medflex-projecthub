@@ -41,7 +41,8 @@ export async function updateProject(
   projectId: string,
   data: { name?: string; color?: string; ownerId?: string; status?: string }
 ) {
-  const update: { name?: string; color?: string; ownerId?: string; status?: string } = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const update: Record<string, any> = {};
 
   if (data.name !== undefined) {
     const name = data.name.trim();

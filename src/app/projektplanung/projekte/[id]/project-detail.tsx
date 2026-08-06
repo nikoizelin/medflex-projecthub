@@ -334,9 +334,9 @@ export function ProjectDetail({
         <div className="flex items-center gap-2">
           {!allChecked && (
             <Select
-              value={project.status === "ABGESCHLOSSEN" ? "LAUFEND" : project.status}
+              value={project.status === "ABGESCHLOSSEN" ? "LAUFEND" : (project.status ?? "LAUFEND")}
               onValueChange={(v) =>
-                startTransition(() => updateProject(project.id, { status: v }))
+                v && startTransition(() => updateProject(project.id, { status: v }))
               }
             >
               <SelectTrigger className="h-5 gap-1 border-0 bg-transparent px-0 text-xs shadow-none focus:ring-0 [&>svg]:size-3">
