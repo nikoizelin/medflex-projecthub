@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { CalendarRange, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -82,7 +82,12 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
         if (status !== "alle" && p.status !== status) return false;
         return true;
       })
-      .sort((a, b) => b.progress - a.progress);
+      .sort((a, b) => {
+        const aFull = a.progress >= 100 ? 1 : 0;
+        const bFull = b.progress >= 100 ? 1 : 0;
+        if (aFull !== bFull) return aFull - bFull;
+        return b.progress - a.progress;
+      });
   }, [projects, search, status]);
 
   return (
@@ -162,6 +167,7 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
           <SelectContent>
             <SelectItem value="alle">Alle Status</SelectItem>
             <SelectItem value="LAUFEND">Laufend</SelectItem>
+            <SelectItem value="PAUSIERT">Pausiert</SelectItem>
             <SelectItem value="ABGESCHLOSSEN">Abgeschlossen</SelectItem>
           </SelectContent>
         </Select>
@@ -212,6 +218,13 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
                 <p className="mt-2.5 text-xs text-muted-foreground">{p.ownerName}</p>
               )}
 
+              <Link
+                href={`/projektplanung/projekte/${p.id}?tab=zeitplan`}
+                className="absolute top-2 right-9 z-10 flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                aria-label={`${p.name} Zeitplan öffnen`}
+              >
+                <CalendarRange className="size-4" />
+              </Link>
               <DeleteProjectButton projectId={p.id} projectName={p.name} />
             </div>
           ))}

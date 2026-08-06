@@ -140,11 +140,13 @@ export function ProjectDetail({
   users,
   currentUserId,
   currentUserName,
+  initialTab = "zeitplan",
 }: {
   project: Project;
   users: UserItem[];
   currentUserId: string;
   currentUserName: string;
+  initialTab?: string;
 }) {
   const [startDate, setStartDate] = useState(
     project.startDate ? project.startDate.slice(0, 10) : ""
@@ -329,13 +331,31 @@ export function ProjectDetail({
             )}
           </div>
         </div>
-        <span className={cn("inline-flex h-5 items-center rounded-full px-2 text-xs font-medium", STATUS_BADGE_CLASS[displayStatus])}>
-          {STATUS_LABEL[displayStatus]}
-          {project.calculated ? ` · ${progress}%` : ""}
-        </span>
+        <div className="flex items-center gap-2">
+          {!allChecked && (
+            <Select
+              value={project.status === "ABGESCHLOSSEN" ? "LAUFEND" : project.status}
+              onValueChange={(v) =>
+                startTransition(() => updateProject(project.id, { status: v }))
+              }
+            >
+              <SelectTrigger className="h-5 gap-1 border-0 bg-transparent px-0 text-xs shadow-none focus:ring-0 [&>svg]:size-3">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="LAUFEND">Laufend</SelectItem>
+                <SelectItem value="PAUSIERT">Pausiert</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          <span className={cn("inline-flex h-5 items-center rounded-full px-2 text-xs font-medium", STATUS_BADGE_CLASS[displayStatus])}>
+            {STATUS_LABEL[displayStatus]}
+            {project.calculated ? ` · ${progress}%` : ""}
+          </span>
+        </div>
       </div>
 
-      <Tabs defaultValue="zeitplan">
+      <Tabs defaultValue={initialTab}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="zeitplan">
             <CalendarRange className="size-4" />

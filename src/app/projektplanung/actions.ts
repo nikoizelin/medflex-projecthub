@@ -39,9 +39,9 @@ export async function createProject(formData: FormData) {
 
 export async function updateProject(
   projectId: string,
-  data: { name?: string; color?: string; ownerId?: string }
+  data: { name?: string; color?: string; ownerId?: string; status?: string }
 ) {
-  const update: { name?: string; color?: string; ownerId?: string } = {};
+  const update: { name?: string; color?: string; ownerId?: string; status?: string } = {};
 
   if (data.name !== undefined) {
     const name = data.name.trim();
@@ -56,6 +56,11 @@ export async function updateProject(
 
   if (data.ownerId !== undefined) {
     update.ownerId = data.ownerId;
+  }
+
+  if (data.status !== undefined) {
+    if (!["LAUFEND", "PAUSIERT", "ABGESCHLOSSEN"].includes(data.status)) return;
+    update.status = data.status;
   }
 
   if (Object.keys(update).length === 0) return;

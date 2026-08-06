@@ -1,16 +1,19 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CalendarRange } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/current-user";
 import { ProjectDetail } from "./project-detail";
 
 export default async function ProjectDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
+  const { tab } = await searchParams;
   const currentUser = await getCurrentUser();
 
   const [project, users] = await Promise.all([
@@ -53,13 +56,22 @@ export default async function ProjectDetailPage({
 
   return (
     <div>
-      <Link
-        href="/projektplanung/uebersicht"
-        className="mb-2.5 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Zurück
-      </Link>
+      <div className="mb-2.5 flex items-center justify-between">
+        <Link
+          href="/projektplanung/uebersicht"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          Zurück
+        </Link>
+        <Link
+          href="/projektplanung/zeitplan"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <CalendarRange className="size-4" />
+          Zeitplan
+        </Link>
+      </div>
 
       <ProjectDetail
         project={{
@@ -96,6 +108,7 @@ export default async function ProjectDetailPage({
         users={users}
         currentUserId={currentUser?.id ?? ""}
         currentUserName={currentUser?.name ?? "Unbekannt"}
+        initialTab={tab === "checkliste" || tab === "testing" ? tab : "zeitplan"}
       />
     </div>
   );

@@ -34,6 +34,12 @@ export const PALETTE = [
   "#993556",
   "#534AB7",
   "#854F0B",
+  "#0E7490",
+  "#166534",
+  "#7C3AED",
+  "#B45309",
+  "#0F766E",
+  "#9F1239",
 ] as const;
 
 export function isWeekend(date: Date): boolean {
@@ -129,15 +135,14 @@ export function calculateSchedule(startDate: Date): ComputedScheduleStep[] {
   return computed;
 }
 
-/** Deadline = letztes Schedule-Step-Enddatum minus 1 Monat */
+/** Deadline = letztes Schedule-Step-Enddatum */
 export function computeDeadline(steps: ComputedScheduleStep[]): Date {
-  const lastEnd = steps.reduce(
-    (latest, step) => (step.end > latest ? step.end : latest),
-    steps[0].end
+  return new Date(
+    steps.reduce(
+      (latest, step) => (step.end > latest ? step.end : latest),
+      steps[0].end
+    )
   );
-  const deadline = new Date(lastEnd);
-  deadline.setMonth(deadline.getMonth() - 1);
-  return deadline;
 }
 
 /** Die 29 vordefinierten Checklisten-Punkte */
