@@ -205,15 +205,12 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
             className="grid gap-2"
             style={{ gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(200px, 1fr))` }}
           >
-            {COLUMNS.map((col, colIdx) => {
+            {COLUMNS.map((col) => {
               const colProjects = byColumn.get(col.id) ?? [];
               return (
                 <div key={col.id} className="flex flex-col overflow-hidden rounded-lg border bg-muted/30">
                   {/* Column header */}
                   <div className="flex items-center gap-2 border-b bg-muted/60 px-3 py-2">
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-background text-[10px] font-bold text-muted-foreground">
-                      {colIdx + 1}
-                    </span>
                     <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-foreground/70">
                       {col.label}
                     </span>
