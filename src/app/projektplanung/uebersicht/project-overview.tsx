@@ -69,6 +69,30 @@ const STATUS_FILTER_LABEL: Record<"alle" | ProjectStatus, string> = {
   ...STATUS_LABEL,
 };
 
+const COLUMNS = [
+  { id: "vorbereitung", label: "Vorbereitung" },
+  { id: "setup",        label: "Setup" },
+  { id: "entwicklung",  label: "Entwicklung" },
+  { id: "golive",       label: "Go-Live" },
+  { id: "monitoring",   label: "Monitoring" },
+  { id: "abgeschlossen",label: "Abgeschlossen" },
+] as const;
+
+type ColumnId = (typeof COLUMNS)[number]["id"];
+
+function getColumnId(p: ProjectListItem): ColumnId {
+  if (p.progress >= 100 || p.status === "ABGESCHLOSSEN") return "abgeschlossen";
+  if (!p.calculated) return "vorbereitung";
+  switch (p.phaseLabel) {
+    case "Setup":        return "setup";
+    case "Entwicklung":  return "entwicklung";
+    case "Schulung":     return "golive";
+    case "Go-Live":      return "golive";
+    case "Monitoring":   return "monitoring";
+    default:             return "vorbereitung";
+  }
+}
+
 export function ProjectOverview({ projects, users }: { projects: ProjectListItem[]; users: UserItem[] }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"alle" | ProjectStatus>("alle");
@@ -76,19 +100,19 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
   const [selectedOwnerId, setSelectedOwnerId] = useState("");
 
   const filtered = useMemo(() => {
-    return projects
-      .filter((p) => {
-        if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
-        if (status !== "alle" && p.status !== status) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        const aFull = a.progress >= 100 ? 1 : 0;
-        const bFull = b.progress >= 100 ? 1 : 0;
-        if (aFull !== bFull) return aFull - bFull;
-        return b.progress - a.progress;
-      });
+    return projects.filter((p) => {
+      if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (status !== "alle" && p.status !== status) return false;
+      return true;
+    });
   }, [projects, search, status]);
+
+  const byColumn = useMemo(() => {
+    const map = new Map<ColumnId, ProjectListItem[]>();
+    for (const col of COLUMNS) map.set(col.id, []);
+    for (const p of filtered) map.get(getColumnId(p))!.push(p);
+    return map;
+  }, [filtered]);
 
   return (
     <div>
@@ -176,51 +200,59 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground">Keine Projekte gefunden.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((p) => (
-            <div
-              key={p.id}
-              className="group relative rounded-lg border bg-background p-3.5 transition-colors hover:border-foreground/20"
-            >
-              <Link
-                href={`/projektplanung/projekte/${p.id}`}
-                className="absolute inset-0 z-0"
-                aria-label={`${p.name} öffnen`}
-              />
-              <div className="mb-1 flex items-center gap-1.5 pr-6">
-                <span
-                  className="size-2 shrink-0 rounded-full"
-                  style={{ background: p.color }}
-                />
-                <p className="text-sm font-medium">{p.name}</p>
-              </div>
-              <p className="mb-2 text-xs text-muted-foreground">
-                {p.calculated ? `Phase: ${p.phaseLabel}` : "Noch nicht berechnet"}
-              </p>
-              <span
-                className={`inline-flex h-5 items-center rounded-full px-2 text-xs font-medium ${STATUS_BADGE_CLASS[p.status]}`}
-              >
-                {STATUS_LABEL[p.status]}
-              </span>
-              {p.calculated ? (
-                <>
-                  <div className="mt-2.5 mb-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${p.progress}%`, background: p.color }}
-                    />
+        <div className="overflow-x-auto pb-2">
+          <div className="flex gap-3" style={{ minWidth: `${COLUMNS.length * 276}px` }}>
+            {COLUMNS.map((col) => {
+              const colProjects = byColumn.get(col.id) ?? [];
+              return (
+                <div key={col.id} className="w-64 shrink-0">
+                  <div className="mb-2 flex items-center justify-between px-0.5">
+                    <span className="text-sm font-semibold">{col.label}</span>
+                    <span className="text-xs text-muted-foreground">{colProjects.length}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {p.progress}% &middot; {p.ownerName}
-                  </p>
-                </>
-              ) : (
-                <p className="mt-2.5 text-xs text-muted-foreground">{p.ownerName}</p>
-              )}
-
-<DeleteProjectButton projectId={p.id} projectName={p.name} />
-            </div>
-          ))}
+                  <div className="flex flex-col gap-2">
+                    {colProjects.map((p) => (
+                      <div
+                        key={p.id}
+                        className="group relative rounded-lg border bg-background p-3 transition-colors hover:border-foreground/20"
+                      >
+                        <Link
+                          href={`/projektplanung/projekte/${p.id}`}
+                          className="absolute inset-0 z-0"
+                          aria-label={`${p.name} öffnen`}
+                        />
+                        <div className="mb-1 flex items-center gap-1.5 pr-6">
+                          <span className="size-2 shrink-0 rounded-full" style={{ background: p.color }} />
+                          <p className="text-sm font-medium leading-tight">{p.name}</p>
+                        </div>
+                        <span
+                          className={`inline-flex h-5 items-center rounded-full px-2 text-xs font-medium ${STATUS_BADGE_CLASS[p.status]}`}
+                        >
+                          {STATUS_LABEL[p.status]}
+                        </span>
+                        {p.calculated ? (
+                          <>
+                            <div className="mt-2 mb-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                              <div
+                                className="h-full rounded-full"
+                                style={{ width: `${p.progress}%`, background: p.color }}
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {p.progress}% &middot; {p.ownerName}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="mt-2 text-xs text-muted-foreground">{p.ownerName}</p>
+                        )}
+                        <DeleteProjectButton projectId={p.id} projectName={p.name} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -7,11 +7,9 @@ import {
   TableCell,
   TextRun,
   WidthType,
-  AlignmentType,
   HeadingLevel,
   BorderStyle,
   ShadingType,
-  PageBreak,
 } from "docx";
 import { saveAs } from "file-saver";
 
@@ -30,7 +28,7 @@ export interface ExportEntry {
   kommentar: string;
 }
 
-const BRAND = "#064b91";
+const BRAND = "064b91";
 const LABEL_BG = "F1F5F9";
 const COMMENT_BG = "FEF9C3";
 const CELL_W = 9360;
@@ -42,13 +40,6 @@ const KATEGORIE_LABEL: Record<string, string> = {
   "medflex-app": "MedFlex App",
   sonstiges: "Sonstiges",
   featurewunsch: "Featurewunsch",
-};
-
-const PRIORITY_LABEL: Record<string, string> = {
-  kritisch: "Kritisch",
-  hoch: "Hoch",
-  mittel: "Mittel",
-  niedrig: "Niedrig",
 };
 
 const border = {
@@ -65,7 +56,7 @@ function labelCell(text: string): TableCell {
     borders: border,
     children: [
       new Paragraph({
-        children: [new TextRun({ text, size: 18, bold: true, color: "64748B" })],
+        children: [new TextRun({ text, size: 18, bold: true, color: "64748B", font: "Arial" })],
         spacing: { before: 60, after: 60 },
       }),
     ],
@@ -87,6 +78,7 @@ function valueCell(text: string, highlight = false): TableCell {
             size: 20,
             color: highlight ? "92400E" : "0F172A",
             bold: highlight,
+            font: "Arial",
           }),
         ],
         spacing: { before: 60, after: 60 },
@@ -125,8 +117,6 @@ function entryTable(entry: ExportEntry): Table {
   const rows: TableRow[] = [
     row("Datum", dateLabel),
     row("Kategorie", KATEGORIE_LABEL[kat] ?? kat),
-    row("Priorität", PRIORITY_LABEL[entry.prioritaet] ?? entry.prioritaet),
-    row("Status", entry.status.charAt(0).toUpperCase() + entry.status.slice(1)),
   ];
 
   if (kat === "featurewunsch") {
@@ -162,36 +152,37 @@ export async function generateChangeRequestDocx(entries: ExportEntry[]) {
   });
 
   const first = entries[0];
+  const praxisKunde = first.praxisKunde || "Kunde";
 
   const sections: (Paragraph | Table)[] = [
     new Paragraph({
       children: [
         new TextRun({
-          text: "MedFlex Schweiz AG",
+          text: `${praxisKunde} Änderungsanfrage`,
           size: 28,
           bold: true,
-          color: BRAND.replace("#", ""),
+          color: BRAND,
+          font: "Arial",
         }),
       ],
     }),
     new Paragraph({
       children: [
-        new TextRun({ text: "Änderungsanfragen – Voice Agent Support", size: 22, color: "64748B" }),
+        new TextRun({ text: "MedFlex Schweiz AG – Voice Agent Support", size: 22, color: "64748B", font: "Arial" }),
       ],
       spacing: { after: 60 },
     }),
     new Paragraph({
-      children: [new TextRun({ text: `Erstellt am: ${now}`, size: 18, color: "94A3B8" })],
+      children: [new TextRun({ text: `Erstellt am: ${now}`, size: 18, color: "94A3B8", font: "Arial" })],
       spacing: { after: 300 },
     }),
-    // Contact info — only once
     new Paragraph({
       text: "Kontaktangaben",
       heading: HeadingLevel.HEADING_2,
       spacing: { before: 0, after: 160 },
     }),
     contactTable(first),
-    new Paragraph({ children: [new PageBreak()] }),
+    new Paragraph({ spacing: { before: 240, after: 0 } }),
   ];
 
   entries.forEach((entry, i) => {
@@ -202,25 +193,26 @@ export async function generateChangeRequestDocx(entries: ExportEntry[]) {
       new Paragraph({
         text: `${i + 1}. ${titleText} – ${kategorieText}`,
         heading: HeadingLevel.HEADING_2,
-        spacing: { before: 0, after: 160 },
+        spacing: { before: i === 0 ? 0 : 320, after: 160 },
       }),
       entryTable(entry)
     );
-
-    if (i < entries.length - 1) {
-      sections.push(new Paragraph({ children: [new PageBreak()] }));
-    }
   });
 
   const doc = new Document({
     styles: {
+      default: {
+        document: {
+          run: { font: "Arial", size: 20 },
+        },
+      },
       paragraphStyles: [
         {
           id: "Heading2",
           name: "Heading 2",
           basedOn: "Normal",
           next: "Normal",
-          run: { size: 24, bold: true, color: BRAND.replace("#", "") },
+          run: { size: 24, bold: true, color: BRAND, font: "Arial" },
         },
       ],
     },
@@ -235,5 +227,10 @@ export async function generateChangeRequestDocx(entries: ExportEntry[]) {
   });
 
   const blob = await Packer.toBlob(doc);
-  saveAs(blob, `aenderungsanfragen_${new Date().toISOString().slice(0, 10)}.docx`);
+
+  // Filename: Aenderungsanfrage_[Praxis/Kunde]_[dd-MM-YYYY]
+  const dateParts = now.split(".");
+  const dateStr = dateParts.length === 3 ? `${dateParts[0]}-${dateParts[1]}-${dateParts[2]}` : now;
+  const safeName = praxisKunde.replace(/[^a-zA-Z0-9äöüÄÖÜ]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+  saveAs(blob, `Aenderungsanfrage_${safeName}_${dateStr}.docx`);
 }
