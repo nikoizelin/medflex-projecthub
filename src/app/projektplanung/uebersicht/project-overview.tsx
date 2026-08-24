@@ -201,27 +201,41 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
         <p className="text-sm text-muted-foreground">Keine Projekte gefunden.</p>
       ) : (
         <div className="overflow-x-auto pb-2">
-          <div className="flex gap-3" style={{ minWidth: `${COLUMNS.length * 276}px` }}>
-            {COLUMNS.map((col) => {
+          <div
+            className="grid gap-2"
+            style={{ gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(200px, 1fr))` }}
+          >
+            {COLUMNS.map((col, colIdx) => {
               const colProjects = byColumn.get(col.id) ?? [];
               return (
-                <div key={col.id} className="w-64 shrink-0">
-                  <div className="mb-2 flex items-center justify-between px-0.5">
-                    <span className="text-sm font-semibold">{col.label}</span>
-                    <span className="text-xs text-muted-foreground">{colProjects.length}</span>
+                <div key={col.id} className="flex flex-col overflow-hidden rounded-lg border bg-muted/30">
+                  {/* Column header */}
+                  <div className="flex items-center gap-2 border-b bg-muted/60 px-3 py-2">
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-background text-[10px] font-bold text-muted-foreground">
+                      {colIdx + 1}
+                    </span>
+                    <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-foreground/70">
+                      {col.label}
+                    </span>
+                    {colProjects.length > 0 && (
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-background text-[10px] font-semibold text-muted-foreground">
+                        {colProjects.length}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex flex-col gap-2">
+                  {/* Cards */}
+                  <div className="flex flex-col gap-2 p-2">
                     {colProjects.map((p) => (
                       <div
                         key={p.id}
-                        className="group relative rounded-lg border bg-background p-3 transition-colors hover:border-foreground/20"
+                        className="group relative rounded-md border bg-background p-3 shadow-sm transition-colors hover:border-foreground/20"
                       >
                         <Link
                           href={`/projektplanung/projekte/${p.id}`}
                           className="absolute inset-0 z-0"
                           aria-label={`${p.name} öffnen`}
                         />
-                        <div className="mb-1 flex items-center gap-1.5 pr-6">
+                        <div className="mb-1.5 flex items-center gap-1.5 pr-6">
                           <span className="size-2 shrink-0 rounded-full" style={{ background: p.color }} />
                           <p className="text-sm font-medium leading-tight">{p.name}</p>
                         </div>
@@ -232,7 +246,7 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
                         </span>
                         {p.calculated ? (
                           <>
-                            <div className="mt-2 mb-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                            <div className="mt-2 mb-1 h-1 overflow-hidden rounded-full bg-muted">
                               <div
                                 className="h-full rounded-full"
                                 style={{ width: `${p.progress}%`, background: p.color }}

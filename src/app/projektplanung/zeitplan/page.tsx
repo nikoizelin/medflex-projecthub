@@ -8,7 +8,7 @@ export default async function ZeitplanPage({
 }) {
   const { projekt } = await searchParams;
   const projects = await prisma.project.findMany({
-    where: { calculated: true },
+    where: { calculated: true, status: "LAUFEND" },
     select: {
       id: true,
       name: true,

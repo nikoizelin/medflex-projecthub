@@ -64,13 +64,20 @@ export default async function ProjectDetailPage({
           <ArrowLeft className="size-4" />
           Zurück
         </Link>
-        <Link
-          href={`/projektplanung/zeitplan?projekt=${project.id}`}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <CalendarRange className="size-4" />
-          Zeitplan
-        </Link>
+        {project.status === "LAUFEND" ? (
+          <Link
+            href={`/projektplanung/zeitplan?projekt=${project.id}`}
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <CalendarRange className="size-4" />
+            Zeitplan
+          </Link>
+        ) : (
+          <span className="inline-flex cursor-not-allowed items-center gap-1.5 text-sm text-muted-foreground/40">
+            <CalendarRange className="size-4" />
+            Zeitplan
+          </span>
+        )}
       </div>
 
       <ProjectDetail
