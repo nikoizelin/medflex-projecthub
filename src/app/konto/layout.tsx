@@ -15,7 +15,7 @@ export default async function KontoLayout({
     <div className="flex min-h-screen">
       <AppSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar title="Benutzerkonto" userName={user.name} />
+        <AppTopbar title="Benutzerkonto" userName={user.name} userId={user.id} />
         <main className="flex-1 p-5">{children}</main>
       </div>
     </div>

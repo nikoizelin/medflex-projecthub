@@ -180,7 +180,7 @@ export const baseChecklist: string[] = [
   "Fortlaufendes Monitoring",                                                   // 28
 ];
 
-/** Die 6 Phasen, denen die 34 Checklisten-Punkte zugeordnet werden */
+/** Die 6 Phasen, denen die 29 Checklisten-Punkte zugeordnet werden */
 export const PHASE_NAMES = [
   "Vorbereitung",
   "Setup",

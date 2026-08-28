@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/current-user";
+import { createNotification } from "@/lib/notifications";
 import {
   PALETTE,
   baseChecklist,
@@ -224,6 +225,17 @@ export async function createProjectComment(projectId: string, message: string) {
   await prisma.projectComment.create({
     data: { projectId, authorId: user.id, message: trimmed },
   });
+
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { ownerId: true, name: true } });
+  if (project && project.ownerId !== user.id) {
+    await createNotification(
+      project.ownerId,
+      "PROJECT_COMMENT",
+      `Kommentar in «${project.name}»`,
+      `${user.name}: ${trimmed.slice(0, 80)}`,
+      `/projektplanung/projekte/${projectId}`
+    );
+  }
 
   revalidatePath(`/projektplanung/projekte/${projectId}`);
 }

@@ -14,7 +14,7 @@ export default async function DashboardPage() {
     <div className="flex min-h-screen">
       <AppSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar title="Module" userName={user.name} />
+        <AppTopbar title="Module" userName={user.name} userId={user.id} />
         <main className="flex-1 p-5">
           <h1 className="mb-1 text-lg font-semibold">Module</h1>
           <p className="mb-4 text-sm text-muted-foreground">

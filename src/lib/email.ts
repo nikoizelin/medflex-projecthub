@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { KATEGORIE_LABEL } from "./constants";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -159,12 +160,6 @@ export async function sendProjectAssignmentEmail({
   });
 }
 
-const KATEGORIE_LABEL: Record<string, string> = {
-  telefonassistent: "Telefonassistent",
-  "medflex-app": "MedFlex App",
-  sonstiges: "Sonstiges",
-  featurewunsch: "Featurewunsch",
-};
 
 export async function sendSupportAssignmentEmail({
   to,

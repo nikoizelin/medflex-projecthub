@@ -14,13 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { submitSupportRequest, type ContactInfo, type ChangeRequestEntryInput } from "../actions";
-
-const KATEGORIE_OPTIONS = [
-  { value: "telefonassistent", label: "Telefonassistent" },
-  { value: "medflex-app", label: "MedFlex App" },
-  { value: "featurewunsch", label: "Featurewunsch" },
-  { value: "sonstiges", label: "Sonstiges" },
-];
+import { KATEGORIE_OPTIONS } from "@/lib/constants";
 
 const KATEGORIE_BADGE: Record<string, string> = {
   telefonassistent: "bg-blue-500/10 text-blue-700",

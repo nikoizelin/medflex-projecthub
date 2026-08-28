@@ -12,6 +12,7 @@ import {
   ShadingType,
 } from "docx";
 import { saveAs } from "file-saver";
+import { KATEGORIE_LABEL } from "@/lib/constants";
 
 export interface ExportEntry {
   kontaktperson: string;
@@ -35,12 +36,6 @@ const CELL_W = 9360;
 const LABEL_W = 2400;
 const VALUE_W = CELL_W - LABEL_W;
 
-const KATEGORIE_LABEL: Record<string, string> = {
-  telefonassistent: "Telefonassistent",
-  "medflex-app": "MedFlex App",
-  sonstiges: "Sonstiges",
-  featurewunsch: "Featurewunsch",
-};
 
 const border = {
   top: { style: BorderStyle.SINGLE, size: 1, color: "E2E8F0" },

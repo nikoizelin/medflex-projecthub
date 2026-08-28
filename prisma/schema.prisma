@@ -43,6 +43,7 @@ model User {
   comments                 ProjectComment[]
   ticketComments           TicketComment[]
   assignedSupportEntries   ChangeRequest[]  @relation("SupportAssignee")
+  notifications            Notification[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -70,13 +71,13 @@ model Project {
   @@index([ownerId])
 }
 
-/// Berechneter Schritt aus dem 22-Schritte-Ablauf (Stabsübergabe → Monitoring-Besprechung)
+/// Berechneter Schritt aus dem 25-Schritte-Ablauf
 model ScheduleStep {
   id        String   @id @default(cuid())
   projectId String
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
-  /// Reihenfolge gemäss scheduleSteps-Definition (0-21)
+  /// Reihenfolge gemäss scheduleSteps-Definition (0-24)
   order     Int
   startDate DateTime
   endDate   DateTime
@@ -118,7 +119,7 @@ model TicketComment {
   @@index([ticketId])
 }
 
-/// Punkt der 34-teiligen Checkliste je Projekt
+/// Punkt der 29-teiligen Checkliste je Projekt
 model ChecklistItem {
   id        String   @id @default(cuid())
   projectId String
@@ -234,6 +235,24 @@ model ScreenshotAttachment {
 
   @@index([changeRequestId])
   @@map("screenshot_attachments")
+}
+
+/// In-App Benachrichtigung für einen User
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// z. B. "TICKET_ASSIGNED" | "TICKET_COMMENT" | "PROJECT_COMMENT" | "SUPPORT_ASSIGNED"
+  type      String
+  title     String
+  body      String   @default("")
+  /// Ziel-URL für Navigation beim Klicken
+  href      String   @default("")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 /// Eintrag im Testing-Protokoll eines Projekts

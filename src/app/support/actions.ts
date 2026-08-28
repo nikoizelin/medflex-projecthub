@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { createNotification } from "@/lib/notifications";
 
 const VALID_KATEGORIEN = ["telefonassistent", "medflex-app", "featurewunsch", "sonstiges"];
 
@@ -149,18 +150,27 @@ export async function updateChangeRequestAssignee(id: string, assigneeId: string
     },
   });
 
-  if (assigneeId && entry.assignee?.email) {
-    const { sendSupportAssignmentEmail } = await import("@/lib/email");
-    await sendSupportAssignmentEmail({
-      to: entry.assignee.email,
-      assigneeName: entry.assignee.name,
-      kontaktperson: entry.supportRequest.kontaktperson,
-      praxisKunde: entry.supportRequest.praxisKunde,
-      kategorie: entry.kategorie,
-      beschreibungProblem: entry.beschreibungProblem,
-      prioritaet: entry.prioritaet,
-      datum: entry.datum.toISOString().slice(0, 10),
-    }).catch(() => {});
+  if (assigneeId && entry.assignee) {
+    if (entry.assignee.email) {
+      const { sendSupportAssignmentEmail } = await import("@/lib/email");
+      await sendSupportAssignmentEmail({
+        to: entry.assignee.email,
+        assigneeName: entry.assignee.name,
+        kontaktperson: entry.supportRequest.kontaktperson,
+        praxisKunde: entry.supportRequest.praxisKunde,
+        kategorie: entry.kategorie,
+        beschreibungProblem: entry.beschreibungProblem,
+        prioritaet: entry.prioritaet,
+        datum: entry.datum.toISOString().slice(0, 10),
+      }).catch(() => {});
+    }
+    await createNotification(
+      assigneeId,
+      "SUPPORT_ASSIGNED",
+      "Support-Anfrage zugewiesen",
+      `Dir wurde eine Anfrage von ${entry.supportRequest.praxisKunde || entry.supportRequest.kontaktperson} zugewiesen.`,
+      "/support/anfragen"
+    );
   }
 
   revalidatePath("/support/anfragen");

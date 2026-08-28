@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/current-user";
 import { TicketStatus, TicketPriority } from "@/generated/prisma";
 import { sendTicketAssignmentEmail } from "@/lib/email";
+import { createNotification } from "@/lib/notifications";
 
 async function notifyAssignee({
   assigneeId,
@@ -63,6 +64,16 @@ export async function createTicket(formData: FormData) {
 
   await notifyAssignee({ assigneeId, creatorName: user.name, title, description, priority, status: TicketStatus.NEU, isUpdate: false });
 
+  if (assigneeId && assigneeId !== user.id) {
+    await createNotification(
+      assigneeId,
+      "TICKET_ASSIGNED",
+      "Ticket zugewiesen",
+      `${user.name} hat dir das Ticket «${title}» zugewiesen.`,
+      "/ticketsystem/board"
+    );
+  }
+
   revalidatePath("/ticketsystem/board");
 }
 
@@ -106,6 +117,16 @@ export async function updateTicket(
     isUpdate: true,
   });
 
+  if (data.assigneeId && data.assigneeId !== user.id && data.assigneeId !== existing?.assigneeId) {
+    await createNotification(
+      data.assigneeId,
+      "TICKET_ASSIGNED",
+      "Ticket zugewiesen",
+      `${user.name} hat dir das Ticket «${title}» zugewiesen.`,
+      "/ticketsystem/board"
+    );
+  }
+
   revalidatePath("/ticketsystem/board");
 }
 
@@ -125,6 +146,20 @@ export async function createTicketComment(ticketId: string, message: string) {
   await prisma.ticketComment.create({
     data: { ticketId, authorId: user.id, message: trimmed },
   });
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: ticketId },
+    select: { title: true, creatorId: true, assigneeId: true },
+  });
+  if (ticket) {
+    const recipients = new Set([ticket.creatorId, ticket.assigneeId].filter(Boolean) as string[]);
+    recipients.delete(user.id);
+    await Promise.all(
+      [...recipients].map((uid) =>
+        createNotification(uid, "TICKET_COMMENT", "Neuer Kommentar", `${user.name}: ${trimmed.slice(0, 80)}`, "/ticketsystem/board")
+      )
+    );
+  }
 
   revalidatePath("/ticketsystem/board");
 }

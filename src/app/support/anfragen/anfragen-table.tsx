@@ -37,6 +37,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { KATEGORIE_LABEL } from "@/lib/constants";
 import {
   updateChangeRequestStatus,
   updateChangeRequestPriority,
@@ -112,12 +113,6 @@ const STATUS_BADGE: Record<string, string> = {
 
 const STATUS_OPTIONS = ["offen", "in Bearbeitung", "erledigt"];
 
-const KATEGORIE_LABEL: Record<string, string> = {
-  telefonassistent: "Telefonassistent",
-  "medflex-app": "MedFlex App",
-  sonstiges: "Sonstiges",
-  featurewunsch: "Featurewunsch",
-};
 
 const KATEGORIE_BADGE: Record<string, string> = {
   telefonassistent: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
