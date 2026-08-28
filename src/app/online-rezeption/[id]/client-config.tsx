@@ -6,6 +6,7 @@ import { TabStandorte } from "./tab-standorte";
 import { TabStartseite } from "./tab-startseite";
 import { TabFormular } from "./tab-formular";
 import { TabChat } from "./tab-chat";
+import { TabVorschau } from "./tab-vorschau";
 import type { FormStep } from "@/lib/reception-form-templates";
 
 export interface ClientData {
@@ -40,6 +41,7 @@ const TABS = [
   { value: "startseite", label: "Startseite" },
   { value: "formular",   label: "Formular" },
   { value: "chat",       label: "Chat" },
+  { value: "vorschau",   label: "Vorschau" },
 ];
 
 export function ClientConfig({ client }: { client: ClientData }) {
@@ -67,6 +69,9 @@ export function ClientConfig({ client }: { client: ClientData }) {
       </TabsContent>
       <TabsContent value="chat">
         <TabChat client={client} />
+      </TabsContent>
+      <TabsContent value="vorschau">
+        <TabVorschau slug={client.slug} />
       </TabsContent>
     </Tabs>
   );
