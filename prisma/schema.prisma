@@ -255,6 +255,86 @@ model Notification {
   @@index([userId, createdAt(sort: Desc)])
 }
 
+// ─── Online Rezeption ────────────────────────────────────────────────────────
+
+/// Konfiguration einer Online-Rezeption (pro Praxis/Kunde)
+model ReceptionClient {
+  id                 String   @id @default(cuid())
+  name               String
+  /// Eindeutiger URL-Slug für das Widget
+  slug               String   @unique
+  logoPath           String   @default("")
+  /// Titel im Widget (Standard = name)
+  widgetTitle        String   @default("")
+  widgetSubtitle     String   @default("")
+  defaultCountryCode String   @default("+41")
+  /// 11Labs Conversational AI Agent ID
+  elevenLabsAgentId  String   @default("")
+  privacyPolicyText  String   @default("")
+  privacyPolicyUrl   String   @default("")
+  // Quick-Action-Buttons
+  qa1Label           String   @default("Termin")
+  qa1Target          String   @default("TERMIN")
+  qa2Label           String   @default("Chat")
+  qa2Target          String   @default("CHAT")
+  qa3Label           String   @default("Sonstiges")
+  qa3Target          String   @default("FORM_SONSTIGES")
+  // Startseite
+  fachrichtung       String   @default("")
+  introText          String   @default("")
+  /// Step-by-Step Formular als JSON ([{ id, title, subtitle, fields: [...] }])
+  formSteps          Json     @default("[]")
+
+  locations          ReceptionLocation[]
+  news               ReceptionNews[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+/// Standort einer Praxis
+model ReceptionLocation {
+  id           String          @id @default(cuid())
+  clientId     String
+  client       ReceptionClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name         String          @default("Hauptstandort")
+  address      String          @default("")
+  phone        String          @default("")
+  isDefault    Boolean         @default(false)
+  order        Int             @default(0)
+  openingHours ReceptionOpeningHours[]
+
+  @@index([clientId])
+}
+
+/// Öffnungszeiten pro Standort (dayOfWeek: 0=Mo … 6=So)
+model ReceptionOpeningHours {
+  id         String            @id @default(cuid())
+  locationId String
+  location   ReceptionLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  dayOfWeek  Int
+  openTime   String            @default("")
+  closeTime  String            @default("")
+  isClosed   Boolean           @default(false)
+  note       String            @default("")
+
+  @@index([locationId])
+}
+
+/// News-Eintrag auf der Startseite der Rezeption
+model ReceptionNews {
+  id        String          @id @default(cuid())
+  clientId  String
+  client    ReceptionClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title     String
+  body      String          @default("")
+  order     Int             @default(0)
+  createdAt DateTime        @default(now())
+
+  @@index([clientId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /// Eintrag im Testing-Protokoll eines Projekts
 model TestingEntry {
   id          String   @id @default(cuid())

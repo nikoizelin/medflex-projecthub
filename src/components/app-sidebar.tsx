@@ -11,6 +11,7 @@ import {
   KanbanSquare,
   ChartBar,
   Inbox,
+  MonitorSmartphone,
 } from "lucide-react";
 
 const navSections = [
@@ -42,6 +43,13 @@ const navSections = [
     label: "Support",
     items: [
       { href: "/support/anfragen", label: "Anfragen", icon: Inbox },
+    ],
+  },
+  {
+    prefix: "/online-rezeption",
+    label: "Online Rezeption",
+    items: [
+      { href: "/online-rezeption", label: "Kunden", icon: MonitorSmartphone },
     ],
   },
 ];
