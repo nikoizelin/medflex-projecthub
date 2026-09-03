@@ -35,12 +35,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const token = (data.signed_url ?? data.token) as string | undefined;
+    let token = (data.signed_url ?? data.token) as string | undefined;
     if (!token) {
       return NextResponse.json(
         { error: `No signed_url/token in response: ${JSON.stringify(data)}` },
         { status: 502 }
       );
+    }
+
+    // EU API returns a JWT instead of a raw wss:// URL.
+    // Decode the payload and extract the actual signed_url from metadata.
+    if (token.startsWith("eyJ")) {
+      try {
+        const payload = JSON.parse(
+          Buffer.from(token.split(".")[1], "base64url").toString("utf8")
+        );
+        const meta = typeof payload.metadata === "string"
+          ? JSON.parse(payload.metadata)
+          : payload.metadata;
+        if (meta?.signed_url?.startsWith("wss://")) {
+          token = meta.signed_url as string;
+        }
+      } catch {
+        // leave token as-is; SDK may handle it
+      }
     }
 
     return NextResponse.json({ token });
