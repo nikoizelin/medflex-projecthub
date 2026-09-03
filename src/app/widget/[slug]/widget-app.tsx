@@ -165,7 +165,7 @@ function LocationSelector({ locations, onSelect }: {
   return (
     <div className="absolute inset-0 z-40 flex flex-col rounded-2xl bg-white p-5">
       <p className="mb-3 font-semibold text-gray-900 text-sm">Bitte wählen Sie Ihren Standort</p>
-      <div className="space-y-2 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
+      <div className="space-y-2 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
         {locations.map((loc) => (
           <button key={loc.id} onClick={() => onSelect(loc)}
             className="flex w-full items-start gap-3 rounded-xl border border-gray-100 p-3 text-left hover:bg-gray-50 transition-colors">
@@ -185,6 +185,20 @@ function LocationSelector({ locations, onSelect }: {
 // ─── Contact Step ─────────────────────────────────────────────────────────────
 
 const INPUT_ERR = "w-full rounded-lg border border-red-400 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200";
+
+function birthdateError(value: string, requireAdult: boolean): string | undefined {
+  if (!value) return "Pflichtfeld";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const d = new Date(value);
+  if (isNaN(d.getTime()) || d > today) return "Das Datum ist ungültig.";
+  if (requireAdult) {
+    const min18 = new Date(today); min18.setFullYear(min18.getFullYear() - 18);
+    if (d > min18) return "Sie müssen mind. 18 Jahre alt sein.";
+  }
+  return undefined;
+}
+
+const TODAY_STR = new Date().toISOString().split("T")[0];
 
 function ContactStep({ config, data, onChange }: {
   config: WidgetConfig; data: ContactData; onChange: (d: ContactData) => void;
@@ -210,6 +224,13 @@ function ContactStep({ config, data, onChange }: {
   }
 
   const emailOk = !data.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email);
+  const bdErr = birthdateError(data.birthdate, true); // representative always 18+
+  const bdCls = touched.birthdate && bdErr ? INPUT_ERR : BASE.input;
+
+  // proxy patient date: only future-date check, no age restriction
+  const proxyBdErr = data.proxyBirthdate
+    ? (new Date(data.proxyBirthdate) > new Date() ? "Das Datum ist ungültig." : undefined)
+    : undefined;
 
   return (
     <div className="space-y-3">
@@ -234,7 +255,14 @@ function ContactStep({ config, data, onChange }: {
             <div><label className={BASE.label}>Vorname</label><input className={BASE.input} placeholder="Vorname" value={data.proxyName.split(" ")[0] ?? ""} onChange={(e) => set("proxyName", `${e.target.value} ${data.proxyName.split(" ").slice(1).join(" ")}`.trim())} /></div>
             <div><label className={BASE.label}>Nachname</label><input className={BASE.input} placeholder="Nachname" value={data.proxyName.split(" ").slice(1).join(" ")} onChange={(e) => set("proxyName", `${data.proxyName.split(" ")[0] ?? ""} ${e.target.value}`.trim())} /></div>
           </div>
-          <div><label className={BASE.label}>Geburtsdatum</label><input type="date" className={BASE.input} value={data.proxyBirthdate} onChange={(e) => set("proxyBirthdate", e.target.value)} /></div>
+          <div>
+            <label className={`${BASE.label} ${proxyBdErr ? "text-red-600" : ""}`}>Geburtsdatum</label>
+            <input type="date" max={TODAY_STR} min="1900-01-01"
+              className={`${BASE.input} cursor-pointer [color-scheme:light] ${proxyBdErr ? "border-red-400" : ""}`}
+              value={data.proxyBirthdate}
+              onChange={(e) => set("proxyBirthdate", e.target.value)} />
+            {proxyBdErr && <p className="mt-0.5 text-xs text-red-500">{proxyBdErr}</p>}
+          </div>
         </div>
       )}
 
@@ -255,13 +283,15 @@ function ContactStep({ config, data, onChange }: {
         )}
       </div>
 
-      {field("birthdate", "Geburtsdatum *",
+      {field("birthdate",
+        data.forSelf === "proxy" ? "Ihr Geburtsdatum (Vertretung) *" : "Geburtsdatum *",
         <input type="date"
-          className={`${touched.birthdate && !data.birthdate ? INPUT_ERR : BASE.input} cursor-pointer [color-scheme:light]`}
+          max={TODAY_STR} min="1900-01-01"
+          className={`${bdCls} cursor-pointer [color-scheme:light]`}
           value={data.birthdate}
           onChange={(e) => set("birthdate", e.target.value)}
           onBlur={() => touch("birthdate")} />,
-        !data.birthdate ? "Pflichtfeld" : undefined
+        bdErr
       )}
 
       {field("phone", "Mobilnummer *",
@@ -275,7 +305,7 @@ function ContactStep({ config, data, onChange }: {
           </select>
           <input type="tel"
             className={`${touched.phone && !data.phone ? INPUT_ERR : BASE.input} flex-1`}
-            placeholder="079 000 00 00" value={data.phone}
+            placeholder="79 000 00 00" value={data.phone}
             onChange={(e) => set("phone", e.target.value)}
             onBlur={() => touch("phone")} />
         </div>,
@@ -509,7 +539,7 @@ function FormTab({ config, location, contact, setContact }: {
     return step.fields.filter((f) => f.required).every((f) => !!answers[f.id]);
   }
   function canSubmit(): boolean {
-    return !!(contact.firstName && contact.lastName && contact.birthdate && contact.email && contact.phone && contact.privacyConsent);
+    return !!(contact.firstName && contact.lastName && !birthdateError(contact.birthdate, true) && contact.email && contact.phone && contact.privacyConsent);
   }
 
   async function submit() {
@@ -576,7 +606,7 @@ function FormTab({ config, location, contact, setContact }: {
         </div>
 
         {/* Scrollable area: contact form + file list */}
-        <div className="flex-1 overflow-y-auto space-y-3 min-h-0" style={{ scrollbarWidth: "none" }}>
+        <div className="flex-1 overflow-y-auto space-y-3 min-h-0" style={{ scrollbarWidth: "thin" }}>
           <ContactStep config={config} data={contact} onChange={setContact} />
 
           {/* File upload */}
@@ -635,7 +665,7 @@ function FormTab({ config, location, contact, setContact }: {
       <p className="text-sm font-semibold text-gray-900">{step.title}</p>
       {step.subtitle && <p className="text-xs text-gray-500">{step.subtitle}</p>}
 
-      <div className="overflow-y-auto space-y-4" style={{ maxHeight: 260, scrollbarWidth: "none" }}>
+      <div className="overflow-y-auto space-y-4" style={{ maxHeight: 260, scrollbarWidth: "thin" }}>
         {step.fields.map((f) => {
           const hasErr = showStepErrors && f.required && !answers[f.id];
           return (
@@ -689,15 +719,25 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
   }, [messages, agentTyping]);
 
   function canStart() {
-    return !!(contact.firstName && contact.lastName && contact.email && contact.phone && contact.privacyConsent);
+    return !!(contact.firstName && contact.lastName && !birthdateError(contact.birthdate, true) && contact.email && contact.phone && contact.privacyConsent);
   }
 
   async function startChat() {
     if (!config.elevenLabsAgentId) return;
     setPhase("connecting");
     setDebugError(null);
-    setMessages([]);
     setChatEnded(false);
+
+    const contactSummary = [
+      `Name: ${contact.firstName} ${contact.lastName}`,
+      contact.birthdate ? `Geburtsdatum: ${contact.birthdate}` : null,
+      `E-Mail: ${contact.email}`,
+      `Telefon: ${contact.countryCode} ${contact.phone}`,
+      contact.forSelf === "proxy" && contact.proxyName
+        ? `Vertretung für: ${contact.proxyName}${contact.proxyBirthdate ? ` (*${contact.proxyBirthdate})` : ""}`
+        : null,
+    ].filter(Boolean).join(" · ");
+    setMessages([{ role: "system", text: contactSummary }]);
 
     try {
       const res = await fetch("/api/elevenlabs/session", {
@@ -861,7 +901,7 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
       <div className="space-y-3">
         <p className="text-sm font-semibold text-gray-900">Ihre Kontaktdaten</p>
         <p className="text-xs text-gray-500">Bevor der Chat startet, benötigen wir kurz Ihre Angaben.</p>
-        <div className="overflow-y-auto" style={{ maxHeight: 300, scrollbarWidth: "none" }}>
+        <div className="overflow-y-auto" style={{ maxHeight: 300, scrollbarWidth: "thin" }}>
           <ContactStep config={config} data={contact} onChange={setContact} />
         </div>
         <div className="flex gap-2">
@@ -885,8 +925,8 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
 
         {/* Message list */}
         <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0" style={{ scrollbarWidth: "thin" }}>
-          {messages.length === 0 && (
-            <p className="text-center text-xs text-gray-400 pt-6">Assistent schreibt gleich …</p>
+          {messages.every((m) => m.role === "system") && (
+            <p className="text-center text-xs text-gray-400 pt-2">Assistent schreibt gleich …</p>
           )}
           {messages.map((m, i) => {
             if (m.role === "system") {
@@ -982,7 +1022,7 @@ function HomeTab({ config, location, onOpenForm, onOpenChat }: {
 }) {
   const accent = config.accentColor;
   return (
-    <div className="space-y-5 overflow-y-auto" style={{ maxHeight: 450, scrollbarWidth: "none" }}>
+    <div className="space-y-5 overflow-y-auto" style={{ maxHeight: 450, scrollbarWidth: "thin" }}>
       {(config.fachrichtung || config.introText) && (
         <div>
           {config.fachrichtung && <p className="mb-1 text-xs font-semibold" style={{ color: accent }}>{config.fachrichtung}</p>}
@@ -1106,7 +1146,7 @@ function WidgetPanel({ config, location, onClose, initialTab, contact, setContac
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden px-4 py-4">
+      <div className="flex-1 overflow-hidden px-5 py-5">
         {activeTab === "home" && (
           <HomeTab config={config} location={location}
             onOpenForm={() => setActiveTab("formular")}
