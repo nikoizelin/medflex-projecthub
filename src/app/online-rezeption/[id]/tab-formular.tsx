@@ -16,6 +16,7 @@ const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "textarea",        label: "Langtext" },
   { value: "select",          label: "Dropdown" },
   { value: "radio",           label: "Auswahl (Radio)" },
+  { value: "matrix",          label: "Matrix (Checkboxen)" },
   { value: "date",            label: "Datum" },
   { value: "time",            label: "Uhrzeit" },
   { value: "number",          label: "Zahl" },
@@ -106,6 +107,30 @@ function FieldEditor({ field, onChange, onDelete }: {
                 rows={3}
               />
             </div>
+          )}
+          {field.type === "matrix" && (
+            <>
+              <div className="sm:col-span-2">
+                <Label className="text-xs">Zeilen / Tageszeiten (eine pro Zeile)</Label>
+                <textarea
+                  value={(field.rows ?? ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"]).join("\n")}
+                  onChange={(e) => onChange({ ...field, rows: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
+                  className="mt-0.5 w-full rounded-md border bg-background px-2 py-1.5 text-xs"
+                  rows={5}
+                  placeholder={"Montag\nDienstag\nMittwoch\nDonnerstag\nFreitag"}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label className="text-xs">Spalten (eine pro Zeile)</Label>
+                <textarea
+                  value={(field.columns ?? ["Vormittag", "Nachmittag"]).join("\n")}
+                  onChange={(e) => onChange({ ...field, columns: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
+                  className="mt-0.5 w-full rounded-md border bg-background px-2 py-1.5 text-xs"
+                  rows={3}
+                  placeholder={"Vormittag\nNachmittag"}
+                />
+              </div>
+            </>
           )}
           <div className="flex items-center gap-2">
             <Checkbox checked={field.required} onCheckedChange={(v) => onChange({ ...field, required: Boolean(v) })} id={`req-${field.id}`} />

@@ -1,4 +1,4 @@
-export type FieldType = "text" | "textarea" | "select" | "radio" | "date" | "time" | "number" | "medication_list";
+export type FieldType = "text" | "textarea" | "select" | "radio" | "date" | "time" | "number" | "medication_list" | "matrix";
 
 export interface FormField {
   id: string;
@@ -6,7 +6,9 @@ export interface FormField {
   label: string;
   placeholder?: string;
   required: boolean;
-  options?: string[];
+  options?: string[];     // for select/radio
+  rows?: string[];        // for matrix: row labels (e.g. Montag, Dienstag)
+  columns?: string[];     // for matrix: column labels (e.g. Vormittag, Nachmittag)
 }
 
 export interface FormStep {

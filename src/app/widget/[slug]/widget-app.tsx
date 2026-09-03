@@ -99,13 +99,14 @@ const BASE = {
 
 // ─── Logo/Avatar ──────────────────────────────────────────────────────────────
 
-function LogoMark({ config, size = 8 }: { config: WidgetConfig; size?: number }) {
+function LogoMark({ config, size = 8, round = false }: { config: WidgetConfig; size?: number; round?: boolean }) {
+  const shape = round ? "rounded-full" : "rounded-lg";
   if (config.logoPath) {
-    return <img src={config.logoPath} alt={config.name} className={`size-${size} rounded-lg object-contain`} />;
+    return <img src={config.logoPath} alt={config.name} className={`size-${size} ${shape} object-contain`} />;
   }
   return (
     <div
-      className={`flex size-${size} shrink-0 items-center justify-center rounded-lg text-white font-bold`}
+      className={`flex size-${size} shrink-0 items-center justify-center ${shape} text-white font-bold`}
       style={{ background: config.accentColor, fontSize: size > 8 ? 18 : 13 }}
     >
       {config.name.charAt(0)}
@@ -299,6 +300,61 @@ function MedicationListField({ value, onChange, accent }: {
   );
 }
 
+// ─── Matrix Field ─────────────────────────────────────────────────────────────
+
+function MatrixField({ field, value, onChange, accent }: {
+  field: FormField; value: string; onChange: (v: string) => void; accent: string;
+}) {
+  const rows = field.rows ?? ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
+  const cols = field.columns ?? ["Vormittag", "Nachmittag"];
+
+  // value is JSON: { "Montag|Vormittag": true, ... }
+  const checked: Record<string, boolean> = (() => {
+    try { return value ? JSON.parse(value) : {}; } catch { return {}; }
+  })();
+
+  function toggle(row: string, col: string) {
+    const key = `${row}|${col}`;
+    const next = { ...checked, [key]: !checked[key] };
+    onChange(JSON.stringify(next));
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr>
+            <th className="pb-2 pr-3 text-left font-normal text-gray-400" />
+            {cols.map((c) => (
+              <th key={c} className="pb-2 px-2 text-center font-medium text-gray-700">{c}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, ri) => (
+            <tr key={row} className={ri % 2 === 0 ? "bg-gray-50" : "bg-white"}>
+              <td className="py-2 pr-3 font-semibold text-gray-800 whitespace-nowrap rounded-l-lg pl-2">{row}</td>
+              {cols.map((col) => {
+                const key = `${row}|${col}`;
+                return (
+                  <td key={col} className="py-2 px-2 text-center rounded-r-lg">
+                    <input
+                      type="checkbox"
+                      checked={!!checked[key]}
+                      onChange={() => toggle(row, col)}
+                      style={{ accentColor: accent, width: 16, height: 16 }}
+                    />
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ─── Field Renderer ───────────────────────────────────────────────────────────
 
 function FieldRenderer({ field, value, onChange, accent }: {
@@ -308,6 +364,9 @@ function FieldRenderer({ field, value, onChange, accent }: {
 
   if (field.type === "medication_list") {
     return <MedicationListField value={value} onChange={onChange} accent={accent} />;
+  }
+  if (field.type === "matrix") {
+    return <MatrixField field={field} value={value} onChange={onChange} accent={accent} />;
   }
 
   if (field.type === "radio") {
@@ -885,11 +944,12 @@ export function WidgetApp({ config }: { config: WidgetConfig }) {
     return (
       <div className="fixed bottom-5 right-5" style={{ pointerEvents: "auto" }}>
         <button
-          className="flex size-14 items-center justify-center rounded-full border border-gray-200 bg-white shadow-lg hover:shadow-xl transition-shadow"
+          className="flex size-14 overflow-hidden rounded-full shadow-lg hover:shadow-xl transition-shadow"
           onClick={() => setView("teaser")}
           aria-label="Rezeption öffnen"
+          style={!config.logoPath ? { background: config.accentColor } : {}}
         >
-          <LogoMark config={config} size={8} />
+          <LogoMark config={config} size={14} round />
         </button>
       </div>
     );
