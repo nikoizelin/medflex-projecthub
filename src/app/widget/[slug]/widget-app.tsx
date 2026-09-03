@@ -717,7 +717,33 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
       const ws = new WebSocket(signedUrl);
       wsRef.current = ws;
 
-      ws.onopen = () => setPhase("active");
+      ws.onopen = () => {
+        // Pass contact details so the agent knows the user upfront
+        ws.send(JSON.stringify({
+          type: "conversation_initiation_client_data",
+          dynamic_variables: {
+            user_first_name: contact.firstName,
+            user_last_name:  contact.lastName,
+            user_email:      contact.email,
+            user_phone:      contact.phone,
+            user_birthdate:  contact.birthdate ?? "",
+          },
+          conversation_config_override: {
+            agent: {
+              prompt: {
+                prompt: [
+                  `Der Patient heisst ${contact.firstName} ${contact.lastName}.`,
+                  contact.birthdate ? `Geburtsdatum: ${contact.birthdate}.` : "",
+                  `E-Mail: ${contact.email}.`,
+                  `Telefon: ${contact.phone}.`,
+                  "Frage nicht nach diesen Kontaktdaten, da sie bereits bekannt sind.",
+                ].filter(Boolean).join(" "),
+              },
+            },
+          },
+        }));
+        setPhase("active");
+      };
 
       ws.onmessage = (ev) => {
         try {
@@ -785,7 +811,7 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
     wsRef.current = null;
     fetch(`/api/widget/${config.slug}/submit`, {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: "chat", contact, location }),
+      body: JSON.stringify({ type: "chat", contact, location, messages }),
     }).catch(() => {});
     setPhase("ended");
   }
