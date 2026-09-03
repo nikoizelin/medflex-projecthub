@@ -820,12 +820,12 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
 
             // Send contact info as first user message so agent processes it in conversation
             const contactMsg = [
-              `Meine Daten: ${contact.firstName} ${contact.lastName}`,
-              contact.birthdate ? `geb. ${contact.birthdate}` : null,
-              contact.email,
-              fullPhone,
+              `Meine Daten: Vorname: ${contact.firstName}, Nachname: ${contact.lastName}`,
+              contact.birthdate ? `Geburtsdatum: ${contact.birthdate}` : null,
+              `E-Mail: ${contact.email}`,
+              `Telefon: ${fullPhone}`,
               contact.forSelf === "proxy" && contact.proxyName
-                ? `(Vertretung für: ${contact.proxyName}${contact.proxyBirthdate ? `, geb. ${contact.proxyBirthdate}` : ""})`
+                ? `Vertretung für: ${contact.proxyName}${contact.proxyBirthdate ? `, Geburtsdatum: ${contact.proxyBirthdate}` : ""}`
                 : null,
             ].filter(Boolean).join(", ");
             ws.send(JSON.stringify({ type: "user_message", text: contactMsg }));
