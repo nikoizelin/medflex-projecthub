@@ -662,8 +662,8 @@ function FormTab({ config, location, contact, setContact }: {
 
 // ─── Chat Tab ─────────────────────────────────────────────────────────────────
 
-type ChatPhase = "idle" | "contact" | "connecting" | "active" | "ended";
-type ChatMessage = { role: "user" | "agent"; text: string };
+type ChatPhase = "idle" | "contact" | "connecting" | "active";
+type ChatMessage = { role: "user" | "agent" | "system"; text: string };
 
 function ChatTab({ config, location, contact, setContact, onOpenForm }: {
   config: WidgetConfig; location: Location | null;
@@ -672,12 +672,17 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
 }) {
   const [phase, setPhase] = useState<ChatPhase>("idle");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatEnded, setChatEnded] = useState(false);
   const [input, setInput] = useState("");
   const [agentTyping, setAgentTyping] = useState(false);
   const [debugError, setDebugError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const accent = config.accentColor;
+
+  // keep ref in sync for use inside ws callbacks
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -692,6 +697,7 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
     setPhase("connecting");
     setDebugError(null);
     setMessages([]);
+    setChatEnded(false);
 
     try {
       const res = await fetch("/api/elevenlabs/session", {
@@ -717,38 +723,39 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
       const ws = new WebSocket(signedUrl);
       wsRef.current = ws;
 
-      ws.onopen = () => {
-        // Pass contact details so the agent knows the user upfront
-        ws.send(JSON.stringify({
-          type: "conversation_initiation_client_data",
-          dynamic_variables: {
-            user_first_name: contact.firstName,
-            user_last_name:  contact.lastName,
-            user_email:      contact.email,
-            user_phone:      contact.phone,
-            user_birthdate:  contact.birthdate ?? "",
-          },
-          conversation_config_override: {
-            agent: {
-              prompt: {
-                prompt: [
-                  `Der Patient heisst ${contact.firstName} ${contact.lastName}.`,
-                  contact.birthdate ? `Geburtsdatum: ${contact.birthdate}.` : "",
-                  `E-Mail: ${contact.email}.`,
-                  `Telefon: ${contact.phone}.`,
-                  "Frage nicht nach diesen Kontaktdaten, da sie bereits bekannt sind.",
-                ].filter(Boolean).join(" "),
-              },
-            },
-          },
-        }));
-        setPhase("active");
-      };
-
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data as string) as Record<string, unknown>;
           const type = msg.type as string;
+
+          // Send contact context once server is ready
+          if (type === "conversation_initiation_metadata") {
+            ws.send(JSON.stringify({
+              type: "conversation_initiation_client_data",
+              dynamic_variables: {
+                user_first_name: contact.firstName,
+                user_last_name:  contact.lastName,
+                user_email:      contact.email,
+                user_phone:      contact.phone,
+                user_birthdate:  contact.birthdate ?? "",
+              },
+              conversation_config_override: {
+                agent: {
+                  prompt: {
+                    prompt: [
+                      `Der Patient heisst ${contact.firstName} ${contact.lastName}.`,
+                      contact.birthdate ? `Geburtsdatum: ${contact.birthdate}.` : "",
+                      `E-Mail: ${contact.email}.`,
+                      `Telefon: ${contact.phone}.`,
+                      "Frage nicht nach diesen Kontaktdaten, da sie bereits bekannt sind.",
+                    ].filter(Boolean).join(" "),
+                  },
+                },
+              },
+            }));
+            setPhase("active");
+            return;
+          }
 
           if (type === "ping") {
             const pingEvent = msg.ping_event as Record<string, unknown> | undefined;
@@ -783,13 +790,23 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
         } catch {}
       };
 
+      ws.onopen = () => {
+        // conversation_initiation_metadata triggers the context send
+      };
+
       ws.onerror = () => {
         setDebugError("WebSocket-Verbindungsfehler");
         setPhase("idle");
       };
 
       ws.onclose = () => {
-        if (phase === "active") setPhase("ended");
+        setAgentTyping(false);
+        setMessages((m) => [...m, { role: "system", text: "Chat wurde beendet." }]);
+        setChatEnded(true);
+        fetch(`/api/widget/${config.slug}/submit`, {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ type: "chat", contact, location, messages: messagesRef.current }),
+        }).catch(() => {});
       };
     } catch (e) {
       setDebugError(e instanceof Error ? e.message : String(e));
@@ -809,11 +826,14 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
   function endChat() {
     wsRef.current?.close();
     wsRef.current = null;
-    fetch(`/api/widget/${config.slug}/submit`, {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: "chat", contact, location, messages }),
-    }).catch(() => {});
-    setPhase("ended");
+  }
+
+  function resetChat() {
+    wsRef.current = null;
+    setMessages([]);
+    setChatEnded(false);
+    setInput("");
+    setPhase("idle");
   }
 
   // ── Screens ──────────────────────────────────────────────────────────────────
@@ -823,17 +843,6 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
       <div className="flex flex-col items-center justify-center py-10 text-center">
         <MessageCircle className="mb-3 size-10 text-gray-200" />
         <p className="text-sm text-gray-500">Chat ist noch nicht konfiguriert.</p>
-      </div>
-    );
-  }
-
-  if (phase === "ended") {
-    return (
-      <div className="flex flex-col items-center justify-center py-10 text-center">
-        <CheckCircle2 className="mb-3 size-12 text-green-500" />
-        <p className="font-semibold text-gray-900">Chat beendet</p>
-        <p className="mt-1 text-sm text-gray-500">Vielen Dank. Wir melden uns bei Bedarf bei Ihnen.</p>
-        <button className={`${BASE.btnSm} mt-4 px-5 py-2`} {...btn(accent)} onClick={() => setPhase("idle")}>Neues Gespräch</button>
       </div>
     );
   }
@@ -869,28 +878,39 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
         {/* Header */}
         <div className="flex items-center justify-between mb-2 shrink-0">
           <p className="text-sm font-semibold text-gray-900">Assistent</p>
-          <button className={`${BASE.btnSmOut} text-xs px-2 py-1`} onClick={endChat}>Beenden</button>
+          {!chatEnded && (
+            <button className={`${BASE.btnSmOut} text-xs px-2 py-1`} onClick={endChat}>Beenden</button>
+          )}
         </div>
 
         {/* Message list */}
         <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0" style={{ scrollbarWidth: "thin" }}>
           {messages.length === 0 && (
-            <p className="text-center text-xs text-gray-400 pt-6">Schreiben Sie Ihre erste Nachricht …</p>
+            <p className="text-center text-xs text-gray-400 pt-6">Assistent schreibt gleich …</p>
           )}
-          {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-snug ${
-                  m.role === "user"
-                    ? "text-white rounded-br-sm"
-                    : "bg-gray-100 text-gray-900 rounded-bl-sm"
-                }`}
-                style={m.role === "user" ? { backgroundColor: accent } : undefined}
-              >
-                {m.text}
+          {messages.map((m, i) => {
+            if (m.role === "system") {
+              return (
+                <div key={i} className="flex justify-center py-1">
+                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-400">{m.text}</span>
+                </div>
+              );
+            }
+            return (
+              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-snug ${
+                    m.role === "user"
+                      ? "text-white rounded-br-sm"
+                      : "bg-gray-100 text-gray-900 rounded-bl-sm"
+                  }`}
+                  style={m.role === "user" ? { backgroundColor: accent } : undefined}
+                >
+                  {m.text}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {agentTyping && (
             <div className="flex justify-start">
               <div className="flex gap-1 rounded-2xl rounded-bl-sm bg-gray-100 px-3 py-2.5">
@@ -903,24 +923,34 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
-        <div className="flex gap-2 mt-2 shrink-0">
-          <input
-            className={`${BASE.input} flex-1`}
-            placeholder="Nachricht eingeben …"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-          />
+        {/* Input area — swaps to restart button when chat ended */}
+        {chatEnded ? (
           <button
-            className="shrink-0 flex size-9 items-center justify-center rounded-lg text-white transition-opacity disabled:opacity-40"
-            style={{ backgroundColor: accent }}
-            disabled={!input.trim()}
-            onClick={sendMessage}
+            className={`${BASE.btnSm} mt-2 w-full py-2.5 shrink-0`}
+            {...btn(accent)}
+            onClick={resetChat}
           >
-            <Send className="size-4" />
+            Neues Gespräch starten
           </button>
-        </div>
+        ) : (
+          <div className="flex gap-2 mt-2 shrink-0">
+            <input
+              className={`${BASE.input} flex-1`}
+              placeholder="Nachricht eingeben …"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+            />
+            <button
+              className="shrink-0 flex size-9 items-center justify-center rounded-lg text-white transition-opacity disabled:opacity-40"
+              style={{ backgroundColor: accent }}
+              disabled={!input.trim()}
+              onClick={sendMessage}
+            >
+              <Send className="size-4" />
+            </button>
+          </div>
+        )}
       </div>
     );
   }
