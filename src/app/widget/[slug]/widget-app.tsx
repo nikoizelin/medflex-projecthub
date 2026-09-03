@@ -602,29 +602,8 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
     setDebugError(null);
     try {
       const { Conversation } = await import("@11labs/client");
-      const res = await fetch("/api/elevenlabs/session", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ agentId: config.elevenLabsAgentId }),
-      });
-      const rawText = await res.text();
-      let body: Record<string, unknown> = {};
-      try { body = rawText ? JSON.parse(rawText) : {}; } catch { body = { error: rawText }; }
-      if (!res.ok) {
-        const msg = `Session API ${res.status}: ${body?.error ?? rawText}`;
-        setDebugError(msg);
-        console.error("[11labs]", msg);
-        setPhase("idle");
-        return;
-      }
-      const signedUrl: string = body.token as string;
-      if (!signedUrl) {
-        setDebugError("Kein signedUrl in API-Antwort erhalten");
-        setPhase("idle");
-        return;
-      }
       const conv = await (Conversation as { startSession: (opts: object) => Promise<unknown> }).startSession({
-        signedUrl,
+        agentId: config.elevenLabsAgentId,
         onMessage: (msg: { message: string }) => {
           if (msg.message?.includes("[OPEN_FORM]")) onOpenForm();
         },
