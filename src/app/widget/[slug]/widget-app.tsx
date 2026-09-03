@@ -260,7 +260,7 @@ function ContactStep({ config, data, onChange }: {
             <input type="date" max={TODAY_STR} min="1900-01-01"
               className={`${BASE.input} cursor-pointer [color-scheme:light] ${proxyBdErr ? "border-red-400" : ""}`}
               value={data.proxyBirthdate}
-              onChange={(e) => set("proxyBirthdate", e.target.value)} />
+              onChange={(e) => { const v = e.target.value; if (v && (v.split("-")[0]?.length ?? 0) > 4) return; set("proxyBirthdate", v); }} />
             {proxyBdErr && <p className="mt-0.5 text-xs text-red-500">{proxyBdErr}</p>}
           </div>
         </div>
@@ -289,7 +289,7 @@ function ContactStep({ config, data, onChange }: {
           max={TODAY_STR} min="1900-01-01"
           className={`${bdCls} cursor-pointer [color-scheme:light]`}
           value={data.birthdate}
-          onChange={(e) => set("birthdate", e.target.value)}
+          onChange={(e) => { const v = e.target.value; if (v && (v.split("-")[0]?.length ?? 0) > 4) return; set("birthdate", v); }}
           onBlur={() => touch("birthdate")} />,
         bdErr
       )}
@@ -503,7 +503,13 @@ function FieldRenderer({ field, value, onChange, accent, showError }: {
       <input
         type="date"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        min="1900-01-01"
+        max="9999-12-31"
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v && (v.split("-")[0]?.length ?? 0) > 4) return;
+          onChange(v);
+        }}
         className={`${BASE.input} cursor-pointer [color-scheme:light] ${errCls}`}
       />
     );
@@ -600,7 +606,7 @@ function FormTab({ config, location, contact, setContact }: {
 
   if (phase === "contact") {
     return (
-      <div className="flex flex-col h-full gap-3">
+      <div className="flex flex-col flex-1 min-h-0 gap-3">
         {/* Header */}
         <div className="flex items-center gap-2 shrink-0">
           <button onClick={() => setPhase("steps")} className="text-gray-400 hover:text-gray-700"><ChevronLeft className="size-4" /></button>
@@ -657,7 +663,7 @@ function FormTab({ config, location, contact, setContact }: {
   }
 
   return (
-    <div className="flex flex-col h-full gap-3">
+    <div className="flex flex-col flex-1 min-h-0 gap-3">
       {/* Progress + title (fixed) */}
       <div className="shrink-0 space-y-2">
         <div>
@@ -1168,7 +1174,7 @@ function WidgetPanel({ config, location, onClose, initialTab, contact, setContac
   ];
 
   return (
-    <div className="flex w-[420px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl" style={{ maxHeight: 600 }}>
+    <div className="flex w-[420px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl" style={{ maxHeight: 750 }}>
       {/* Header */}
       <div className="flex shrink-0 items-center gap-2.5 border-b border-gray-100 px-4 py-3">
         <LogoMark config={config} size={8} />
@@ -1201,13 +1207,11 @@ function WidgetPanel({ config, location, onClose, initialTab, contact, setContac
             onOpenForm={() => setActiveTab("formular")}
             onOpenChat={() => setActiveTab("chat")} />
         )}
-        {activeTab === "formular" && (
-          <div className="flex flex-col flex-1 min-h-0">
-            <FormTab config={config} location={location} contact={contact} setContact={setContact} />
-          </div>
-        )}
-        {activeTab === "chat" && (
-          <div className="flex flex-col flex-1 min-h-0">
+        <div className={activeTab === "formular" ? "flex flex-col flex-1 min-h-0" : "hidden"}>
+          <FormTab config={config} location={location} contact={contact} setContact={setContact} />
+        </div>
+        {config.elevenLabsAgentId && (
+          <div className={activeTab === "chat" ? "flex flex-col flex-1 min-h-0" : "hidden"}>
             <ChatTab config={config} location={location} contact={contact} setContact={setContact}
               onOpenForm={() => setActiveTab("formular")} />
           </div>
