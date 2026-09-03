@@ -187,13 +187,32 @@ function LocationSelector({ locations, onSelect }: {
 
 // ─── Contact Step ─────────────────────────────────────────────────────────────
 
+const INPUT_ERR = "w-full rounded-lg border border-red-400 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200";
+
 function ContactStep({ config, data, onChange }: {
   config: WidgetConfig; data: ContactData; onChange: (d: ContactData) => void;
 }) {
+  const [touched, setTouched] = useState<Partial<Record<keyof ContactData, boolean>>>({});
+
   function set(key: keyof ContactData, value: string | boolean) {
     onChange({ ...data, [key]: value });
   }
-  const country = COUNTRIES.find((c) => c.code === data.countryCode) ?? COUNTRIES[0];
+  function touch(key: keyof ContactData) {
+    setTouched((t) => ({ ...t, [key]: true }));
+  }
+
+  function field(key: keyof ContactData, label: string, el: React.ReactNode, err?: string) {
+    const hasErr = touched[key] && err;
+    return (
+      <div>
+        <label className={`block text-xs font-medium mb-1 ${hasErr ? "text-red-600" : "text-gray-700"}`}>{label}</label>
+        {el}
+        {hasErr && <p className="mt-0.5 text-xs text-red-500">{err}</p>}
+      </div>
+    );
+  }
+
+  const emailOk = !data.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email);
 
   return (
     <div className="space-y-3">
@@ -223,38 +242,67 @@ function ContactStep({ config, data, onChange }: {
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        <div><label className={BASE.label}>Vorname</label><input className={BASE.input} placeholder="Vorname" value={data.firstName} onChange={(e) => set("firstName", e.target.value)} /></div>
-        <div><label className={BASE.label}>Nachname</label><input className={BASE.input} placeholder="Nachname" value={data.lastName} onChange={(e) => set("lastName", e.target.value)} /></div>
+        {field("firstName", "Vorname *",
+          <input className={touched.firstName && !data.firstName ? INPUT_ERR : BASE.input}
+            placeholder="Vorname" value={data.firstName}
+            onChange={(e) => set("firstName", e.target.value)}
+            onBlur={() => touch("firstName")} />,
+          !data.firstName ? "Pflichtfeld" : undefined
+        )}
+        {field("lastName", "Nachname *",
+          <input className={touched.lastName && !data.lastName ? INPUT_ERR : BASE.input}
+            placeholder="Nachname" value={data.lastName}
+            onChange={(e) => set("lastName", e.target.value)}
+            onBlur={() => touch("lastName")} />,
+          !data.lastName ? "Pflichtfeld" : undefined
+        )}
       </div>
+
       <div><label className={BASE.label}>Geburtsdatum</label><input type="date" className={BASE.input} value={data.birthdate} onChange={(e) => set("birthdate", e.target.value)} /></div>
 
-      <div>
-        <label className={BASE.label}>Mobilnummer</label>
+      {field("phone", "Mobilnummer *",
         <div className="flex gap-1.5">
-          <select
-            value={data.countryCode}
-            onChange={(e) => set("countryCode", e.target.value)}
+          <select value={data.countryCode} onChange={(e) => set("countryCode", e.target.value)}
             className="rounded-lg border border-gray-200 bg-white px-2 py-2 text-sm text-gray-900 outline-none"
-            style={{ minWidth: 72 }}
-          >
+            style={{ minWidth: 72 }}>
             {COUNTRIES.map((c) => (
               <option key={c.code} value={c.code}>{c.flag} {c.code}</option>
             ))}
           </select>
-          <input type="tel" className={`${BASE.input} flex-1`} placeholder="079 000 00 00" value={data.phone} onChange={(e) => set("phone", e.target.value)} />
-        </div>
-      </div>
-      <div><label className={BASE.label}>E-Mail</label><input type="email" className={BASE.input} placeholder="name@beispiel.ch" value={data.email} onChange={(e) => set("email", e.target.value)} /></div>
+          <input type="tel"
+            className={`${touched.phone && !data.phone ? INPUT_ERR : BASE.input} flex-1`}
+            placeholder="079 000 00 00" value={data.phone}
+            onChange={(e) => set("phone", e.target.value)}
+            onBlur={() => touch("phone")} />
+        </div>,
+        !data.phone ? "Pflichtfeld" : undefined
+      )}
+
+      {field("email", "E-Mail *",
+        <input type="email"
+          className={touched.email && (!data.email || !emailOk) ? INPUT_ERR : BASE.input}
+          placeholder="name@beispiel.ch" value={data.email}
+          onChange={(e) => set("email", e.target.value)}
+          onBlur={() => touch("email")} />,
+        !data.email ? "Pflichtfeld" : !emailOk ? "Ungültige E-Mail-Adresse" : undefined
+      )}
 
       {/* Privacy checkbox */}
-      <label className="flex items-start gap-2 cursor-pointer">
-        <input type="checkbox" checked={data.privacyConsent} onChange={(e) => set("privacyConsent", e.target.checked)} className="mt-0.5 accent-current" style={{ accentColor: config.accentColor }} />
-        <span className="text-xs text-gray-600">
-          Ich stimme der Verarbeitung meiner Daten gemäss{" "}
-          <a href="https://medflex-schweiz.ch/datenschutz" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: config.accentColor }}>Datenschutzerklärung</a>
-          {" "}zu.
-        </span>
-      </label>
+      <div>
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input type="checkbox" checked={data.privacyConsent}
+            onChange={(e) => { set("privacyConsent", e.target.checked); touch("privacyConsent"); }}
+            className="mt-0.5" style={{ accentColor: config.accentColor }} />
+          <span className="text-xs text-gray-600">
+            Ich stimme der Verarbeitung meiner Daten gemäss{" "}
+            <a href="https://medflex-schweiz.ch/datenschutz" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: config.accentColor }}>Datenschutzerklärung</a>
+            {" "}zu.
+          </span>
+        </label>
+        {touched.privacyConsent && !data.privacyConsent && (
+          <p className="mt-0.5 text-xs text-red-500 ml-5">Bitte akzeptieren Sie die Datenschutzerklärung</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -602,8 +650,29 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
     setDebugError(null);
     try {
       const { Conversation } = await import("@11labs/client");
+      const res = await fetch("/api/elevenlabs/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agentId: config.elevenLabsAgentId }),
+      });
+      const rawText = await res.text();
+      let body: Record<string, unknown> = {};
+      try { body = rawText ? JSON.parse(rawText) : {}; } catch { body = { error: rawText }; }
+      if (!res.ok) {
+        const msg = `Session API ${res.status}: ${body?.error ?? rawText}`;
+        setDebugError(msg);
+        console.error("[11labs]", msg);
+        setPhase("idle");
+        return;
+      }
+      const signedUrl = body.token as string;
+      if (!signedUrl) {
+        setDebugError("Kein signedUrl in API-Antwort erhalten");
+        setPhase("idle");
+        return;
+      }
       const conv = await (Conversation as { startSession: (opts: object) => Promise<unknown> }).startSession({
-        agentId: config.elevenLabsAgentId,
+        signedUrl,
         onMessage: (msg: { message: string }) => {
           if (msg.message?.includes("[OPEN_FORM]")) onOpenForm();
         },
@@ -972,14 +1041,13 @@ export function WidgetApp({ config }: { config: WidgetConfig }) {
     <div className="fixed bottom-5 right-5 flex flex-col items-end gap-2" style={{ pointerEvents: "auto" }}>
       {/* Quick-action buttons — icon only */}
       <div className="flex gap-1.5">
-        {[
-          { Icon: Calendar, target: config.qa1Target },
-          { Icon: MessageCircle, target: config.qa2Target },
-          { Icon: MoreHorizontal, target: config.qa3Target },
-        ].map(({ Icon, target }, i) => (
-          <button key={i} onClick={() => { setView("panel"); handleQA(target); }}
-            className="flex size-9 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm hover:bg-gray-50 transition-colors"
-            aria-label={target}>
+        {([
+          { Icon: Calendar,      onClick: () => { setView("panel"); handleQA(config.qa1Target); } },
+          { Icon: MessageCircle, onClick: () => { setView("panel"); handleQA(config.qa2Target); } },
+          { Icon: MoreHorizontal, onClick: () => openPanel("home") },
+        ] as { Icon: React.ComponentType<{ className?: string }>; onClick: () => void }[]).map(({ Icon, onClick }, i) => (
+          <button key={i} onClick={onClick}
+            className="flex size-9 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm hover:bg-gray-50 transition-colors">
             <Icon className="size-4 text-gray-600" />
           </button>
         ))}
@@ -992,7 +1060,7 @@ export function WidgetApp({ config }: { config: WidgetConfig }) {
           onClick={() => openPanel("home")}
         >
           <div className="flex items-center gap-3 min-w-0">
-            <LogoMark config={config} size={10} />
+            <LogoMark config={config} size={10} round />
             <div className="min-w-0 text-left">
               <p className="truncate text-sm font-semibold text-gray-900">{config.widgetTitle}</p>
               {config.widgetSubtitle && <p className="truncate text-xs text-gray-500">{config.widgetSubtitle}</p>}
