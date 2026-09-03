@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Calendar, MessageCircle, MoreHorizontal, X, ChevronRight,
   ChevronLeft, Paperclip, User, Users, CheckCircle2,
-  Clock, Newspaper, Mic, MicOff, Loader2, MapPin,
+  Clock, Newspaper, Send, Loader2, MapPin,
   ExternalLink, FileText, Plus, House,
   AlertCircle, Pill, Syringe, ScrollText, Cross, Activity, Bandage,
 } from "lucide-react";
@@ -663,6 +663,7 @@ function FormTab({ config, location, contact, setContact }: {
 // ─── Chat Tab ─────────────────────────────────────────────────────────────────
 
 type ChatPhase = "idle" | "contact" | "connecting" | "active" | "ended";
+type ChatMessage = { role: "user" | "agent"; text: string };
 
 function ChatTab({ config, location, contact, setContact, onOpenForm }: {
   config: WidgetConfig; location: Location | null;
@@ -670,10 +671,17 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
   onOpenForm: () => void;
 }) {
   const [phase, setPhase] = useState<ChatPhase>("idle");
-  const [isMuted, setIsMuted] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [agentTyping, setAgentTyping] = useState(false);
   const [debugError, setDebugError] = useState<string | null>(null);
-  const convRef = useRef<unknown>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
   const accent = config.accentColor;
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, agentTyping]);
 
   function canStart() {
     return !!(contact.firstName && contact.lastName && contact.email && contact.phone && contact.privacyConsent);
@@ -683,8 +691,9 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
     if (!config.elevenLabsAgentId) return;
     setPhase("connecting");
     setDebugError(null);
+    setMessages([]);
+
     try {
-      const { Conversation } = await import("@11labs/client");
       const res = await fetch("/api/elevenlabs/session", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -694,9 +703,7 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
       let body: Record<string, unknown> = {};
       try { body = rawText ? JSON.parse(rawText) : {}; } catch { body = { error: rawText }; }
       if (!res.ok) {
-        const msg = `Session API ${res.status}: ${body?.error ?? rawText}`;
-        setDebugError(msg);
-        console.error("[11labs]", msg);
+        setDebugError(`Session API ${res.status}: ${body?.error ?? rawText}`);
         setPhase("idle");
         return;
       }
@@ -706,31 +713,76 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
         setPhase("idle");
         return;
       }
-      const conv = await (Conversation as { startSession: (opts: object) => Promise<unknown> }).startSession({
-        signedUrl,
-        onMessage: (msg: { message: string }) => {
-          if (msg.message?.includes("[OPEN_FORM]")) onOpenForm();
-        },
-        onDisconnect: () => setPhase("ended"),
-        onError: (e: unknown) => {
-          const msg = e instanceof Error ? e.message : JSON.stringify(e);
-          setDebugError(`11Labs Verbindungsfehler: ${msg}`);
-          console.error("[11labs] onError:", e);
-          setPhase("idle");
-        },
-      });
-      convRef.current = conv;
-      setPhase("active");
+
+      const ws = new WebSocket(signedUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => setPhase("active");
+
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data as string) as Record<string, unknown>;
+          const type = msg.type as string;
+
+          if (type === "ping") {
+            const pingEvent = msg.ping_event as Record<string, unknown> | undefined;
+            ws.send(JSON.stringify({ type: "pong", event_id: pingEvent?.event_id }));
+            return;
+          }
+
+          if (type === "agent_response") {
+            const ev2 = msg.agent_response_event as Record<string, unknown> | undefined;
+            const text = (ev2?.agent_response ?? ev2?.text ?? "") as string;
+            if (text) {
+              setAgentTyping(false);
+              setMessages((m) => [...m, { role: "agent", text }]);
+              if (text.includes("[OPEN_FORM]")) onOpenForm();
+            }
+          }
+
+          if (type === "agent_response_correction") {
+            const ev2 = msg.agent_response_correction_event as Record<string, unknown> | undefined;
+            const text = (ev2?.corrected_agent_response ?? "") as string;
+            if (text) {
+              setMessages((m) => {
+                const copy = [...m];
+                const last = copy.findLastIndex((x) => x.role === "agent");
+                if (last >= 0) copy[last] = { role: "agent", text };
+                return copy;
+              });
+            }
+          }
+
+          if (type === "interruption") setAgentTyping(false);
+        } catch {}
+      };
+
+      ws.onerror = () => {
+        setDebugError("WebSocket-Verbindungsfehler");
+        setPhase("idle");
+      };
+
+      ws.onclose = () => {
+        if (phase === "active") setPhase("ended");
+      };
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setDebugError(`Fehler: ${msg}`);
-      console.error("[11labs] startChat exception:", e);
+      setDebugError(e instanceof Error ? e.message : String(e));
       setPhase("idle");
     }
   }
 
-  async function endChat() {
-    try { await (convRef.current as { endSession: () => Promise<void> })?.endSession(); } catch {}
+  function sendMessage() {
+    const text = input.trim();
+    if (!text || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: "user_message", text }));
+    setMessages((m) => [...m, { role: "user", text }]);
+    setInput("");
+    setAgentTyping(true);
+  }
+
+  function endChat() {
+    wsRef.current?.close();
+    wsRef.current = null;
     fetch(`/api/widget/${config.slug}/submit`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "chat", contact, location }),
@@ -738,38 +790,35 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
     setPhase("ended");
   }
 
+  // ── Screens ──────────────────────────────────────────────────────────────────
+
+  if (!config.elevenLabsAgentId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <MessageCircle className="mb-3 size-10 text-gray-200" />
+        <p className="text-sm text-gray-500">Chat ist noch nicht konfiguriert.</p>
+      </div>
+    );
+  }
+
   if (phase === "ended") {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center">
         <CheckCircle2 className="mb-3 size-12 text-green-500" />
-        <p className="font-semibold text-gray-900">Gespräch beendet</p>
+        <p className="font-semibold text-gray-900">Chat beendet</p>
         <p className="mt-1 text-sm text-gray-500">Vielen Dank. Wir melden uns bei Bedarf bei Ihnen.</p>
         <button className={`${BASE.btnSm} mt-4 px-5 py-2`} {...btn(accent)} onClick={() => setPhase("idle")}>Neues Gespräch</button>
       </div>
     );
   }
 
-  if (phase === "active") {
+  if (phase === "connecting") {
     return (
-      <div className="flex flex-col items-center py-8 text-center space-y-4">
-        <div className="relative flex size-20 items-center justify-center rounded-full" style={{ background: accent + "18" }}>
-          <div className="absolute inset-0 animate-ping rounded-full" style={{ background: accent + "30" }} />
-          <Mic className="relative size-8" style={{ color: accent }} />
-        </div>
-        <p className="font-semibold text-gray-900">Gespräch läuft …</p>
-        <div className="flex gap-2">
-          <button className={BASE.btnSmOut} onClick={() => setIsMuted((m) => !m)}>
-            {isMuted ? <MicOff className="inline size-4 mr-1" /> : <Mic className="inline size-4 mr-1" />}
-            {isMuted ? "Ton an" : "Stumm"}
-          </button>
-          <button className={`${BASE.btnSm} px-4`} {...btn(accent)} onClick={endChat}>Beenden</button>
-        </div>
+      <div className="flex flex-col items-center justify-center py-10">
+        <Loader2 className="mb-3 size-8 animate-spin" style={{ color: accent }} />
+        <p className="text-sm text-gray-600">Verbindung wird aufgebaut …</p>
       </div>
     );
-  }
-
-  if (phase === "connecting") {
-    return <div className="flex flex-col items-center justify-center py-10"><Loader2 className="mb-3 size-8 animate-spin" style={{ color: accent }} /><p className="text-sm text-gray-600">Verbindung wird aufgebaut …</p></div>;
   }
 
   if (phase === "contact") {
@@ -788,17 +837,76 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
     );
   }
 
-  if (!config.elevenLabsAgentId) {
-    return <div className="flex flex-col items-center justify-center py-10 text-center"><MessageCircle className="mb-3 size-10 text-gray-200" /><p className="text-sm text-gray-500">Chat ist noch nicht konfiguriert.</p></div>;
+  if (phase === "active") {
+    return (
+      <div className="flex flex-col" style={{ height: 420 }}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-2 shrink-0">
+          <p className="text-sm font-semibold text-gray-900">Assistent</p>
+          <button className={`${BASE.btnSmOut} text-xs px-2 py-1`} onClick={endChat}>Beenden</button>
+        </div>
+
+        {/* Message list */}
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0" style={{ scrollbarWidth: "thin" }}>
+          {messages.length === 0 && (
+            <p className="text-center text-xs text-gray-400 pt-6">Schreiben Sie Ihre erste Nachricht …</p>
+          )}
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-snug ${
+                  m.role === "user"
+                    ? "text-white rounded-br-sm"
+                    : "bg-gray-100 text-gray-900 rounded-bl-sm"
+                }`}
+                style={m.role === "user" ? { backgroundColor: accent } : undefined}
+              >
+                {m.text}
+              </div>
+            </div>
+          ))}
+          {agentTyping && (
+            <div className="flex justify-start">
+              <div className="flex gap-1 rounded-2xl rounded-bl-sm bg-gray-100 px-3 py-2.5">
+                <span className="size-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="size-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="size-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input */}
+        <div className="flex gap-2 mt-2 shrink-0">
+          <input
+            className={`${BASE.input} flex-1`}
+            placeholder="Nachricht eingeben …"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+          />
+          <button
+            className="shrink-0 flex size-9 items-center justify-center rounded-lg text-white transition-opacity disabled:opacity-40"
+            style={{ backgroundColor: accent }}
+            disabled={!input.trim()}
+            onClick={sendMessage}
+          >
+            <Send className="size-4" />
+          </button>
+        </div>
+      </div>
+    );
   }
 
+  // idle
   return (
     <div className="flex flex-col items-center py-8 text-center space-y-3">
       <div className="flex size-16 items-center justify-center rounded-full" style={{ background: accent + "18" }}>
         <MessageCircle className="size-8" style={{ color: accent }} />
       </div>
-      <p className="font-semibold text-gray-900">Gespräch mit unserem Assistenten</p>
-      <p className="text-sm text-gray-500">Stellen Sie Ihre Fragen direkt per Sprache.</p>
+      <p className="font-semibold text-gray-900">Chat mit unserem Assistenten</p>
+      <p className="text-sm text-gray-500">Stellen Sie Ihre Fragen direkt per Text.</p>
       {debugError && (
         <div className="max-w-xs rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-left">
           <p className="text-xs font-semibold text-red-700 mb-1">Verbindungsfehler</p>
