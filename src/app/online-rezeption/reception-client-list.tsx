@@ -29,7 +29,7 @@ export function ClientCard({ client }: { client: Client }) {
         <Link href={`/online-rezeption/${client.id}`} className="block">
           <div className="mb-3 flex items-center gap-3">
             {client.logoPath ? (
-              <img src={client.logoPath} alt={client.name} className="size-10 rounded-md object-contain" />
+              <img src={`/api/reception-logo/${client.id}`} alt={client.name} className="size-10 rounded-md object-contain" />
             ) : (
               <div className="flex size-10 items-center justify-center rounded-md bg-muted">
                 <MonitorSmartphone className="size-5 text-muted-foreground" />

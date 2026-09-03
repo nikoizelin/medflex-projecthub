@@ -19,12 +19,31 @@ export async function POST(req: NextRequest) {
     }
   );
 
-  if (!res.ok) {
-    const text = await res.text();
-    console.error("ElevenLabs session error:", text);
-    return NextResponse.json({ error: "Failed to get session token" }, { status: 502 });
+  const responseText = await res.text();
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    console.error("ElevenLabs non-JSON response:", res.status, responseText);
+    return NextResponse.json(
+      { error: `ElevenLabs HTTP ${res.status}: ${responseText.slice(0, 200)}` },
+      { status: 502 }
+    );
   }
 
-  const data = await res.json();
-  return NextResponse.json({ token: data.signed_url ?? data.token });
+  if (!res.ok) {
+    console.error("ElevenLabs session error:", res.status, data);
+    return NextResponse.json(
+      { error: `ElevenLabs ${res.status}: ${JSON.stringify(data)}` },
+      { status: 502 }
+    );
+  }
+
+  const token = (data.signed_url ?? data.token) as string | undefined;
+  if (!token) {
+    console.error("ElevenLabs missing token in response:", data);
+    return NextResponse.json({ error: `No token in response: ${JSON.stringify(data)}` }, { status: 502 });
+  }
+
+  return NextResponse.json({ token });
 }

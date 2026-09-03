@@ -5,9 +5,26 @@ import {
   Calendar, MessageCircle, MoreHorizontal, X, ChevronRight,
   ChevronLeft, Paperclip, User, Users, CheckCircle2,
   Clock, Newspaper, Mic, MicOff, Loader2, MapPin,
-  ExternalLink, Home, FileText, Plus, Trash2, House,
-  AlertCircle,
+  ExternalLink, FileText, Plus, House,
+  AlertCircle, Pill, Syringe, ScrollText, Cross, Activity, Bandage,
 } from "lucide-react";
+import type { ComponentType } from "react";
+
+const FORM_ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
+  calendar:    Calendar,
+  pill:        Pill,
+  syringe:     Syringe,
+  "scroll-text": ScrollText,
+  more:        MoreHorizontal,
+  cross:       Cross,
+  activity:    Activity,
+  bandage:     Bandage,
+  file:        FileText,
+};
+function FormIcon({ id, className }: { id: string; className?: string }) {
+  const Icon = FORM_ICON_MAP[id] ?? FileText;
+  return <Icon className={className} />;
+}
 import type { FormType, FormStep, FormField } from "@/lib/reception-form-templates";
 
 // ─── Config types ─────────────────────────────────────────────────────────────
@@ -417,7 +434,7 @@ function FormTab({ config, location, contact, setContact }: {
           {config.formSteps.map((ft) => (
             <button key={ft.id} onClick={() => { setSelectedType(ft); setStepIndex(0); setPhase("steps"); }}
               className="flex flex-col items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3.5 text-center hover:bg-gray-100 transition-colors">
-              <Calendar className="size-5" style={{ color: accent }} />
+              <span style={{ color: accent }}><FormIcon id={ft.icon} className="size-5" /></span>
               <span className="text-xs font-medium text-gray-800 leading-tight">{ft.title}</span>
             </button>
           ))}
@@ -512,6 +529,7 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
 }) {
   const [phase, setPhase] = useState<ChatPhase>("idle");
   const [isMuted, setIsMuted] = useState(false);
+  const [debugError, setDebugError] = useState<string | null>(null);
   const convRef = useRef<unknown>(null);
   const accent = config.accentColor;
 
@@ -522,6 +540,7 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
   async function startChat() {
     if (!config.elevenLabsAgentId) return;
     setPhase("connecting");
+    setDebugError(null);
     try {
       const { Conversation } = await import("@11labs/client");
       const res = await fetch("/api/elevenlabs/session", {
@@ -529,20 +548,39 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ agentId: config.elevenLabsAgentId }),
       });
-      if (!res.ok) throw new Error("session failed");
-      const { token } = await res.json();
+      const body = await res.json();
+      if (!res.ok) {
+        const msg = `Session API ${res.status}: ${body?.error ?? JSON.stringify(body)}`;
+        setDebugError(msg);
+        console.error("[11labs]", msg);
+        setPhase("idle");
+        return;
+      }
+      const signedUrl: string = body.token;
+      if (!signedUrl) {
+        setDebugError("Kein signedUrl in API-Antwort erhalten");
+        setPhase("idle");
+        return;
+      }
       const conv = await (Conversation as { startSession: (opts: object) => Promise<unknown> }).startSession({
-        signedUrl: token,
+        signedUrl,
         onMessage: (msg: { message: string }) => {
           if (msg.message?.includes("[OPEN_FORM]")) onOpenForm();
         },
         onDisconnect: () => setPhase("ended"),
-        onError: (e: unknown) => { console.error("11labs error", e); setPhase("idle"); },
+        onError: (e: unknown) => {
+          const msg = e instanceof Error ? e.message : JSON.stringify(e);
+          setDebugError(`11Labs Verbindungsfehler: ${msg}`);
+          console.error("[11labs] onError:", e);
+          setPhase("idle");
+        },
       });
       convRef.current = conv;
       setPhase("active");
     } catch (e) {
-      console.error("Chat start error:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      setDebugError(`Fehler: ${msg}`);
+      console.error("[11labs] startChat exception:", e);
       setPhase("idle");
     }
   }
@@ -617,6 +655,12 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
       </div>
       <p className="font-semibold text-gray-900">Gespräch mit unserem Assistenten</p>
       <p className="text-sm text-gray-500">Stellen Sie Ihre Fragen direkt per Sprache.</p>
+      {debugError && (
+        <div className="max-w-xs rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-left">
+          <p className="text-xs font-semibold text-red-700 mb-1">Verbindungsfehler</p>
+          <p className="text-xs text-red-600 break-words">{debugError}</p>
+        </div>
+      )}
       <button className={`${BASE.btnSm} px-6 py-2.5 text-sm`} {...btn(accent)} onClick={() => setPhase("contact")}>Chat starten</button>
     </div>
   );
@@ -723,7 +767,7 @@ function WidgetPanel({ config, location, onClose, initialTab, contact, setContac
   const TABS: { id: PanelTab; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
     { id: "home",     label: "Home",    Icon: House },
     { id: "formular", label: "Formular", Icon: FileText },
-    { id: "chat",     label: "Chat",    Icon: MessageCircle },
+    ...(config.elevenLabsAgentId ? [{ id: "chat" as PanelTab, label: "Chat", Icon: MessageCircle }] : []),
   ];
 
   return (

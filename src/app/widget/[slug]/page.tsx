@@ -29,7 +29,7 @@ export default async function WidgetPage({
         id: client.id,
         slug: client.slug,
         name: client.name,
-        logoPath: client.logoPath,
+        logoPath: client.logoPath ? `/api/reception-logo/${client.id}` : "",
         widgetTitle: client.widgetTitle || client.name,
         widgetSubtitle: client.widgetSubtitle,
         accentColor: client.accentColor,

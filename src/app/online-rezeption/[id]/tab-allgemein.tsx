@@ -18,7 +18,8 @@ export function TabAllgemein({ client }: { client: ClientData }) {
     privacyPolicyText:  client.privacyPolicyText,
     privacyPolicyUrl:   client.privacyPolicyUrl,
   });
-  const [logoUrl, setLogoUrl] = useState(client.logoPath);
+  const proxyUrl = `/api/reception-logo/${client.id}`;
+  const [logoUrl, setLogoUrl] = useState(client.logoPath ? proxyUrl : "");
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -39,7 +40,7 @@ export function TabAllgemein({ client }: { client: ClientData }) {
     const file = e.target.files?.[0];
     if (!file) return;
     const preview = URL.createObjectURL(file);
-    setLogoUrl(preview);
+    setLogoUrl(preview); // show local preview immediately; proxy URL used after reload
     const fd = new FormData();
     fd.append("logo", file);
     startTransition(() => uploadClientLogo(client.id, fd));

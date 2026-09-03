@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Calendar, Pill, Syringe, ScrollText, MoreHorizontal, Cross, Activity, Bandage, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,46 @@ const FIELD_TYPES: { value: FieldType; label: string }[] = [
 ];
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
+
+// ─── Icon Picker ──────────────────────────────────────────────────────────────
+
+const FORM_ICONS: { id: string; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: "calendar",    label: "Kalender",    Icon: Calendar },
+  { id: "pill",        label: "Medikamente", Icon: Pill },
+  { id: "syringe",     label: "Spritze",     Icon: Syringe },
+  { id: "scroll-text", label: "Rezept",      Icon: ScrollText },
+  { id: "more",        label: "Sonstiges",   Icon: MoreHorizontal },
+  { id: "cross",       label: "Notfall",     Icon: Cross },
+  { id: "activity",    label: "Vitals",      Icon: Activity },
+  { id: "bandage",     label: "Pflaster",    Icon: Bandage },
+  { id: "file",        label: "Formular",    Icon: FileText },
+];
+
+function getIcon(id: string) {
+  return FORM_ICONS.find((i) => i.id === id)?.Icon ?? FileText;
+}
+
+function IconPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {FORM_ICONS.map(({ id, label, Icon }) => (
+        <button
+          key={id}
+          type="button"
+          title={label}
+          onClick={() => onChange(id)}
+          className={`flex size-9 items-center justify-center rounded-lg border transition-colors ${
+            value === id
+              ? "border-foreground bg-foreground text-background"
+              : "border-border hover:border-foreground/40"
+          }`}
+        >
+          <Icon className="size-4" />
+        </button>
+      ))}
+    </div>
+  );
+}
 
 // ─── Field Editor ────────────────────────────────────────────────────────────
 
@@ -168,6 +208,10 @@ function FormTypeCard({ formType, onChange, onDelete }: {
               <Label className="text-xs">ID (für Verarbeitung)</Label>
               <Input value={formType.id} onChange={(e) => onChange({ ...formType, id: e.target.value.replace(/\s/g, "-") })} className="mt-0.5 h-7 text-xs font-mono" />
             </div>
+          </div>
+          <div>
+            <Label className="text-xs mb-1.5 block">Icon</Label>
+            <IconPicker value={formType.icon} onChange={(v) => onChange({ ...formType, icon: v })} />
           </div>
 
           <div className="space-y-2">

@@ -43,10 +43,12 @@ export async function uploadClientLogo(id: string, formData: FormData) {
     return;
   }
 
+  // Store the Supabase public URL — logo is served via /api/reception-logo/[id] proxy
   const { data: { publicUrl } } = supabase.storage
     .from("reception-assets")
     .getPublicUrl(filePath);
 
+  // Persist the raw Supabase URL so the proxy can re-download it with the service role key
   await prisma.receptionClient.update({ where: { id }, data: { logoPath: publicUrl } });
   revalidatePath(path(id));
 }
