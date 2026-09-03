@@ -607,15 +607,17 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ agentId: config.elevenLabsAgentId }),
       });
-      const body = await res.json();
+      const rawText = await res.text();
+      let body: Record<string, unknown> = {};
+      try { body = rawText ? JSON.parse(rawText) : {}; } catch { body = { error: rawText }; }
       if (!res.ok) {
-        const msg = `Session API ${res.status}: ${body?.error ?? JSON.stringify(body)}`;
+        const msg = `Session API ${res.status}: ${body?.error ?? rawText}`;
         setDebugError(msg);
         console.error("[11labs]", msg);
         setPhase("idle");
         return;
       }
-      const signedUrl: string = body.token;
+      const signedUrl: string = body.token as string;
       if (!signedUrl) {
         setDebugError("Kein signedUrl in API-Antwort erhalten");
         setPhase("idle");
