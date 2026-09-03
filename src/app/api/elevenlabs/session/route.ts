@@ -10,15 +10,11 @@ export async function POST(req: NextRequest) {
     if (!apiKey) return NextResponse.json({ error: "ELEVENLABS_API_KEY not configured" }, { status: 500 });
 
     const baseUrl = process.env.ELEVENLABS_BASE_URL ?? "https://api.elevenlabs.io";
-    const url = `${baseUrl}/v1/convai/conversation/token`;
+    const url = `${baseUrl}/v1/convai/conversation/token?agent_id=${encodeURIComponent(agentId)}`;
 
     const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "xi-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ agent_id: agentId }),
+      method: "GET",
+      headers: { "xi-api-key": apiKey },
     });
 
     const responseText = await res.text();
