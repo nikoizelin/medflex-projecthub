@@ -600,36 +600,41 @@ function FormTab({ config, location, contact, setContact }: {
 
   if (phase === "contact") {
     return (
-      <div className="flex flex-col gap-3 overflow-hidden" style={{ height: 490 }}>
+      <div className="flex flex-col h-full gap-3">
+        {/* Header */}
         <div className="flex items-center gap-2 shrink-0">
           <button onClick={() => setPhase("steps")} className="text-gray-400 hover:text-gray-700"><ChevronLeft className="size-4" /></button>
           <p className="text-sm font-semibold text-gray-900">Kontaktdaten</p>
         </div>
 
-        {/* Scrollable area: contact form + file list */}
-        <div className="flex-1 overflow-y-auto space-y-3 min-h-0" style={{ scrollbarWidth: "thin" }}>
+        {/* Scrollable contact form */}
+        <div className="flex-1 overflow-y-auto min-h-0" style={{ scrollbarWidth: "thin" }}>
           <ContactStep config={config} data={contact} onChange={setContact} />
+        </div>
 
-          {/* File upload */}
-          <div>
-            <button type="button" onClick={() => fileRef.current?.click()}
-              className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800">
-              <Paperclip className="size-3.5" />
-              Dateien/Fotos hinzufügen{files.length > 0 ? ` (${files.length})` : ""}
-            </button>
-            <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden"
-              onChange={(e) => setFiles((f) => [...f, ...Array.from(e.target.files ?? [])])} />
-            {files.map((f, i) => (
-              <div key={i} className="mt-1 flex items-center justify-between text-xs text-gray-600">
-                <span className="truncate max-w-[240px]">{f.name}</span>
-                <button onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))} className="ml-2 shrink-0 text-gray-400 hover:text-red-500"><X className="size-3.5" /></button>
-              </div>
-            ))}
-          </div>
+        {/* File list (scrollable, max 3 rows visible) + add button */}
+        <div className="shrink-0">
+          {files.length > 0 && (
+            <div className="mb-1 max-h-20 overflow-y-auto space-y-0.5" style={{ scrollbarWidth: "thin" }}>
+              {files.map((f, i) => (
+                <div key={i} className="flex items-center justify-between text-xs text-gray-600">
+                  <span className="truncate max-w-[260px]">{f.name}</span>
+                  <button onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))} className="ml-2 shrink-0 text-gray-400 hover:text-red-500"><X className="size-3.5" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+          <button type="button" onClick={() => fileRef.current?.click()}
+            className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800">
+            <Paperclip className="size-3.5" />
+            Dateien/Fotos hinzufügen{files.length > 0 ? ` (${files.length})` : ""}
+          </button>
+          <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden"
+            onChange={(e) => setFiles((f) => [...f, ...Array.from(e.target.files ?? [])])} />
         </div>
 
         {/* Always-visible submit */}
-        <div className="shrink-0 pt-1 space-y-1">
+        <div className="shrink-0 space-y-1">
           <button className={`${BASE.btnSm} w-full py-2.5`} {...btn(accent)} disabled={!canSubmit()} onClick={submit}>
             Absenden
           </button>
@@ -652,20 +657,22 @@ function FormTab({ config, location, contact, setContact }: {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Progress */}
-      <div>
-        <div className="mb-1 flex justify-between text-xs text-gray-400">
-          <span>{selectedType.title}</span>
-          <span>{stepIndex + 1}/{total}</span>
+    <div className="flex flex-col h-full gap-3">
+      {/* Progress + title (fixed) */}
+      <div className="shrink-0 space-y-2">
+        <div>
+          <div className="mb-1 flex justify-between text-xs text-gray-400">
+            <span>{selectedType.title}</span>
+            <span>{stepIndex + 1}/{total}</span>
+          </div>
+          <div className="h-1 rounded-full bg-gray-100"><div className="h-full rounded-full transition-all" style={{ width: `${((stepIndex + 1) / total) * 100}%`, background: config.accentColor }} /></div>
         </div>
-        <div className="h-1 rounded-full bg-gray-100"><div className="h-full rounded-full transition-all" style={{ width: `${((stepIndex + 1) / total) * 100}%`, background: config.accentColor }} /></div>
+        <p className="text-sm font-semibold text-gray-900">{step.title}</p>
+        {step.subtitle && <p className="text-xs text-gray-500 -mt-1">{step.subtitle}</p>}
       </div>
 
-      <p className="text-sm font-semibold text-gray-900">{step.title}</p>
-      {step.subtitle && <p className="text-xs text-gray-500">{step.subtitle}</p>}
-
-      <div className="overflow-y-auto space-y-4" style={{ maxHeight: 220, scrollbarWidth: "thin" }}>
+      {/* Scrollable fields */}
+      <div className="flex-1 overflow-y-auto min-h-0 space-y-4" style={{ scrollbarWidth: "thin" }}>
         {step.fields.map((f) => {
           const hasErr = showStepErrors && f.required && !answers[f.id];
           return (
@@ -678,8 +685,18 @@ function FormTab({ config, location, contact, setContact }: {
         })}
       </div>
 
-      {/* File upload – persists across all steps */}
-      <div>
+      {/* File upload – fixed above nav buttons */}
+      <div className="shrink-0">
+        {files.length > 0 && (
+          <div className="mb-1 max-h-20 overflow-y-auto space-y-0.5" style={{ scrollbarWidth: "thin" }}>
+            {files.map((f, i) => (
+              <div key={i} className="flex items-center justify-between text-xs text-gray-600">
+                <span className="truncate max-w-[260px]">{f.name}</span>
+                <button onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))} className="ml-2 shrink-0 text-gray-400 hover:text-red-500"><X className="size-3.5" /></button>
+              </div>
+            ))}
+          </div>
+        )}
         <button type="button" onClick={() => fileRef.current?.click()}
           className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800">
           <Paperclip className="size-3.5" />
@@ -687,15 +704,10 @@ function FormTab({ config, location, contact, setContact }: {
         </button>
         <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden"
           onChange={(e) => setFiles((f) => [...f, ...Array.from(e.target.files ?? [])])} />
-        {files.map((f, i) => (
-          <div key={i} className="mt-1 flex items-center justify-between text-xs text-gray-600">
-            <span className="truncate max-w-[240px]">{f.name}</span>
-            <button onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))} className="ml-2 shrink-0 text-gray-400 hover:text-red-500"><X className="size-3.5" /></button>
-          </div>
-        ))}
       </div>
 
-      <div className="flex gap-2">
+      {/* Nav buttons (always visible) */}
+      <div className="shrink-0 flex gap-2">
         <button className={BASE.btnSmOut} onClick={() => { setShowStepErrors(false); stepIndex > 0 ? setStepIndex((i) => i - 1) : (setPhase("picker"), setSelectedType(null)); }}>
           <ChevronLeft className="inline size-3.5" /> Zurück
         </button>
@@ -1183,18 +1195,22 @@ function WidgetPanel({ config, location, onClose, initialTab, contact, setContac
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden px-5 py-5">
+      <div className="flex flex-col flex-1 overflow-hidden px-5 py-5">
         {activeTab === "home" && (
           <HomeTab config={config} location={location}
             onOpenForm={() => setActiveTab("formular")}
             onOpenChat={() => setActiveTab("chat")} />
         )}
         {activeTab === "formular" && (
-          <FormTab config={config} location={location} contact={contact} setContact={setContact} />
+          <div className="flex flex-col flex-1 min-h-0">
+            <FormTab config={config} location={location} contact={contact} setContact={setContact} />
+          </div>
         )}
         {activeTab === "chat" && (
-          <ChatTab config={config} location={location} contact={contact} setContact={setContact}
-            onOpenForm={() => setActiveTab("formular")} />
+          <div className="flex flex-col flex-1 min-h-0">
+            <ChatTab config={config} location={location} contact={contact} setContact={setContact}
+              onOpenForm={() => setActiveTab("formular")} />
+          </div>
         )}
       </div>
 
