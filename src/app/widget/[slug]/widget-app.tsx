@@ -88,7 +88,7 @@ function btn(accent: string) {
 }
 
 const BASE = {
-  input: "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-transparent focus:ring-2 focus:ring-gray-300",
+  input: "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition",
   label: "block text-xs font-medium text-gray-700 mb-1",
   btnSm: "rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed",
   btnSmOut: "rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors",
@@ -184,7 +184,7 @@ function LocationSelector({ locations, onSelect }: {
 
 // ─── Contact Step ─────────────────────────────────────────────────────────────
 
-const INPUT_ERR = "w-full rounded-lg border border-red-400 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200";
+const INPUT_ERR = "w-full rounded-lg border border-red-400 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition";
 
 function birthdateError(value: string, requireAdult: boolean): string | undefined {
   if (!value) return "Pflichtfeld";
@@ -600,7 +600,7 @@ function FormTab({ config, location, contact, setContact }: {
 
   if (phase === "contact") {
     return (
-      <div className="flex flex-col gap-3" style={{ maxHeight: 490 }}>
+      <div className="flex flex-col gap-3 overflow-hidden" style={{ height: 490 }}>
         <div className="flex items-center gap-2 shrink-0">
           <button onClick={() => setPhase("steps")} className="text-gray-400 hover:text-gray-700"><ChevronLeft className="size-4" /></button>
           <p className="text-sm font-semibold text-gray-900">Kontaktdaten</p>
@@ -665,7 +665,7 @@ function FormTab({ config, location, contact, setContact }: {
       <p className="text-sm font-semibold text-gray-900">{step.title}</p>
       {step.subtitle && <p className="text-xs text-gray-500">{step.subtitle}</p>}
 
-      <div className="overflow-y-auto space-y-4" style={{ maxHeight: 260, scrollbarWidth: "thin" }}>
+      <div className="overflow-y-auto space-y-4" style={{ maxHeight: 220, scrollbarWidth: "thin" }}>
         {step.fields.map((f) => {
           const hasErr = showStepErrors && f.required && !answers[f.id];
           return (
@@ -676,6 +676,23 @@ function FormTab({ config, location, contact, setContact }: {
             </div>
           );
         })}
+      </div>
+
+      {/* File upload – persists across all steps */}
+      <div>
+        <button type="button" onClick={() => fileRef.current?.click()}
+          className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800">
+          <Paperclip className="size-3.5" />
+          Dateien/Fotos hinzufügen{files.length > 0 ? ` (${files.length})` : ""}
+        </button>
+        <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden"
+          onChange={(e) => setFiles((f) => [...f, ...Array.from(e.target.files ?? [])])} />
+        {files.map((f, i) => (
+          <div key={i} className="mt-1 flex items-center justify-between text-xs text-gray-600">
+            <span className="truncate max-w-[240px]">{f.name}</span>
+            <button onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))} className="ml-2 shrink-0 text-gray-400 hover:text-red-500"><X className="size-3.5" /></button>
+          </div>
+        ))}
       </div>
 
       <div className="flex gap-2">
@@ -728,16 +745,7 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
     setDebugError(null);
     setChatEnded(false);
 
-    const contactSummary = [
-      `Name: ${contact.firstName} ${contact.lastName}`,
-      contact.birthdate ? `Geburtsdatum: ${contact.birthdate}` : null,
-      `E-Mail: ${contact.email}`,
-      `Telefon: ${contact.countryCode} ${contact.phone}`,
-      contact.forSelf === "proxy" && contact.proxyName
-        ? `Vertretung für: ${contact.proxyName}${contact.proxyBirthdate ? ` (*${contact.proxyBirthdate})` : ""}`
-        : null,
-    ].filter(Boolean).join(" · ");
-    setMessages([{ role: "system", text: contactSummary }]);
+    setMessages([]);
 
     try {
       const res = await fetch("/api/elevenlabs/session", {
@@ -770,13 +778,14 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
 
           // Send contact context once server is ready
           if (type === "conversation_initiation_metadata") {
+            const fullPhone = `${contact.countryCode} ${contact.phone}`;
             ws.send(JSON.stringify({
               type: "conversation_initiation_client_data",
               dynamic_variables: {
                 user_first_name: contact.firstName,
                 user_last_name:  contact.lastName,
                 user_email:      contact.email,
-                user_phone:      contact.phone,
+                user_phone:      fullPhone,
                 user_birthdate:  contact.birthdate ?? "",
               },
               conversation_config_override: {
@@ -786,13 +795,30 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
                       `Der Patient heisst ${contact.firstName} ${contact.lastName}.`,
                       contact.birthdate ? `Geburtsdatum: ${contact.birthdate}.` : "",
                       `E-Mail: ${contact.email}.`,
-                      `Telefon: ${contact.phone}.`,
+                      `Telefon: ${fullPhone}.`,
+                      contact.forSelf === "proxy" && contact.proxyName
+                        ? `Vertretung für: ${contact.proxyName}${contact.proxyBirthdate ? ` (*${contact.proxyBirthdate})` : ""}.`
+                        : "",
                       "Frage nicht nach diesen Kontaktdaten, da sie bereits bekannt sind.",
                     ].filter(Boolean).join(" "),
                   },
                 },
               },
             }));
+
+            // Send contact info as first user message so agent processes it in conversation
+            const contactMsg = [
+              `Meine Daten: ${contact.firstName} ${contact.lastName}`,
+              contact.birthdate ? `geb. ${contact.birthdate}` : null,
+              contact.email,
+              fullPhone,
+              contact.forSelf === "proxy" && contact.proxyName
+                ? `(Vertretung für: ${contact.proxyName}${contact.proxyBirthdate ? `, geb. ${contact.proxyBirthdate}` : ""})`
+                : null,
+            ].filter(Boolean).join(", ");
+            ws.send(JSON.stringify({ type: "user_message", text: contactMsg }));
+            setMessages([{ role: "user", text: contactMsg }]);
+            setAgentTyping(true);
             setPhase("active");
             return;
           }
