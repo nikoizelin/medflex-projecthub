@@ -1,4 +1,4 @@
-export type FieldType = "text" | "textarea" | "select" | "radio" | "date" | "time" | "number";
+export type FieldType = "text" | "textarea" | "select" | "radio" | "date" | "time" | "number" | "medication_list";
 
 export interface FormField {
   id: string;
@@ -16,9 +16,17 @@ export interface FormStep {
   fields: FormField[];
 }
 
+export interface FormType {
+  id: string;
+  title: string;
+  icon: string;
+  steps: FormStep[];
+}
+
 export interface FormTemplate {
   id: string;
   label: string;
+  icon: string;
   steps: FormStep[];
 }
 
@@ -30,16 +38,17 @@ export const FORM_TEMPLATES: FormTemplate[] = [
   {
     id: "termin-anfragen",
     label: "Termin vereinbaren",
+    icon: "calendar",
     steps: [
       {
-        id: uid(), title: "Art des Termins", subtitle: "Was ist der Grund Ihres Besuchs?",
+        id: uid(), title: "Termingrund", subtitle: "Was ist der Grund Ihres Besuchs?",
         fields: [
           { id: "terminart", type: "radio", label: "Terminart", required: true,
             options: ["Erstberatung", "Kontrolltermin", "Impfung", "Sonstiges"] },
         ],
       },
       {
-        id: uid(), title: "Wunschtermin", subtitle: "Wann möchten Sie kommen?",
+        id: uid(), title: "Wunschtermin",
         fields: [
           { id: "datum", type: "date", label: "Bevorzugtes Datum", required: true },
           { id: "uhrzeit", type: "select", label: "Bevorzugte Uhrzeit", required: false,
@@ -52,9 +61,10 @@ export const FORM_TEMPLATES: FormTemplate[] = [
   {
     id: "termin-aendern",
     label: "Termin ändern",
+    icon: "calendar-edit",
     steps: [
       {
-        id: uid(), title: "Bestehender Termin", subtitle: "Wann ist Ihr aktueller Termin?",
+        id: uid(), title: "Bestehender Termin",
         fields: [
           { id: "alter-termin", type: "date", label: "Datum des bestehenden Termins", required: true },
           { id: "grund", type: "textarea", label: "Grund der Änderung", required: false },
@@ -73,13 +83,12 @@ export const FORM_TEMPLATES: FormTemplate[] = [
   {
     id: "termin-absagen",
     label: "Termin absagen",
+    icon: "calendar-x",
     steps: [
       {
         id: uid(), title: "Terminabsage",
         fields: [
           { id: "datum", type: "date", label: "Datum des abzusagenden Termins", required: true },
-          { id: "grund", type: "select", label: "Grund der Absage", required: false,
-            options: ["Krankheit", "Terminkonflikt", "Sonstiges"] },
           { id: "neuer-termin", type: "radio", label: "Neuen Termin gewünscht?", required: false,
             options: ["Ja, bitte kontaktieren Sie mich", "Nein"] },
         ],
@@ -89,12 +98,13 @@ export const FORM_TEMPLATES: FormTemplate[] = [
   {
     id: "rezept-anfordern",
     label: "Rezept anfordern",
+    icon: "file-text",
     steps: [
       {
-        id: uid(), title: "Medikament", subtitle: "Welches Rezept benötigen Sie?",
+        id: uid(), title: "Rezeptanfrage",
         fields: [
           { id: "medikament", type: "textarea", label: "Medikament / Präparat", placeholder: "Name, Dosierung …", required: true },
-          { id: "abholung", type: "radio", label: "Wie möchten Sie das Rezept erhalten?", required: true,
+          { id: "abholung", type: "radio", label: "Gewünschte Zustellung", required: true,
             options: ["Abholung in der Praxis", "Per Post", "E-Rezept (falls verfügbar)"] },
         ],
       },
@@ -103,6 +113,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
   {
     id: "bericht-anfordern",
     label: "Bericht anfordern",
+    icon: "clipboard",
     steps: [
       {
         id: uid(), title: "Berichtsanfrage",
@@ -118,6 +129,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
   {
     id: "au-zeugnis",
     label: "AU-Zeugnis anfordern",
+    icon: "file-check",
     steps: [
       {
         id: uid(), title: "Arbeitsunfähigkeitszeugnis",
@@ -133,9 +145,10 @@ export const FORM_TEMPLATES: FormTemplate[] = [
   {
     id: "notfall",
     label: "Notfall",
+    icon: "alert-circle",
     steps: [
       {
-        id: uid(), title: "Notfallmeldung", subtitle: "Bitte beschreiben Sie Ihre Symptome kurz.",
+        id: uid(), title: "Notfallmeldung",
         fields: [
           { id: "symptome", type: "textarea", label: "Symptome / Beschwerden", required: true },
           { id: "seit", type: "text", label: "Seit wann bestehen die Beschwerden?", required: false },
@@ -148,12 +161,12 @@ export const FORM_TEMPLATES: FormTemplate[] = [
   {
     id: "medikamentenbestellung",
     label: "Medikamentenbestellung",
+    icon: "pill",
     steps: [
       {
-        id: uid(), title: "Bestellung",
+        id: uid(), title: "Medikamentenliste",
         fields: [
-          { id: "medikament", type: "textarea", label: "Medikament / Präparat", placeholder: "Name, Dosierung, Packungsgrösse …", required: true },
-          { id: "menge", type: "number", label: "Menge (Packungen)", required: false },
+          { id: "medikamente", type: "medication_list", label: "Medikamente", required: true },
           { id: "abholung", type: "radio", label: "Abholung", required: true,
             options: ["Praxis", "Apotheke (Adresse im Kommentar angeben)"] },
         ],
@@ -163,6 +176,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
   {
     id: "sonstiges",
     label: "Sonstiges",
+    icon: "more-horizontal",
     steps: [
       {
         id: uid(), title: "Ihre Anfrage",

@@ -6,30 +6,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { updateClientGeneral, uploadClientLogo, deleteClientLogo } from "./actions";
 import type { ClientData } from "./client-config";
 
-const QA_TARGETS = [
-  { value: "TERMIN",         label: "Termin-Formular" },
-  { value: "CHAT",           label: "Chat öffnen" },
-  { value: "FORM_SONSTIGES", label: "Formular: Sonstiges" },
+const ACCENT_PRESETS = [
+  "#E30613", "#BF375F", "#BC358C", "#7A368D",
+  "#283585", "#4B7E9C", "#009740", "#F07D00",
 ];
-
-const COUNTRY_CODES = ["+41", "+49", "+43", "+33", "+39", "+44"];
 
 export function TabAllgemein({ client }: { client: ClientData }) {
   const [form, setForm] = useState({
     widgetTitle:        client.widgetTitle || client.name,
     widgetSubtitle:     client.widgetSubtitle,
+    accentColor:        client.accentColor || "#E30613",
     defaultCountryCode: client.defaultCountryCode,
     privacyPolicyText:  client.privacyPolicyText,
     privacyPolicyUrl:   client.privacyPolicyUrl,
-    qa1Label: client.qa1Label, qa1Target: client.qa1Target,
-    qa2Label: client.qa2Label, qa2Target: client.qa2Target,
-    qa3Label: client.qa3Label, qa3Target: client.qa3Target,
   });
   const [logoUrl, setLogoUrl] = useState(client.logoPath);
   const [saved, setSaved] = useState(false);
@@ -73,10 +65,7 @@ export function TabAllgemein({ client }: { client: ClientData }) {
               />
               <button
                 type="button"
-                onClick={() => {
-                  setLogoUrl("");
-                  startTransition(() => deleteClientLogo(client.id));
-                }}
+                onClick={() => { setLogoUrl(""); startTransition(() => deleteClientLogo(client.id)); }}
                 className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-destructive text-white opacity-0 transition-opacity group-hover:opacity-100"
               >
                 <X className="size-3" />
@@ -95,6 +84,9 @@ export function TabAllgemein({ client }: { client: ClientData }) {
               {logoUrl ? "Logo ändern" : "Logo hochladen"}
             </Button>
             <p className="mt-1 text-xs text-muted-foreground">PNG, JPG, SVG — max. 2 MB</p>
+            <p className="mt-0.5 text-xs text-amber-600">
+              ⚠ Supabase-Bucket muss auf «Public» gestellt sein (Storage → Policies)
+            </p>
           </div>
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
         </div>
@@ -107,7 +99,6 @@ export function TabAllgemein({ client }: { client: ClientData }) {
           <div>
             <Label htmlFor="widgetTitle">Titel</Label>
             <Input id="widgetTitle" value={form.widgetTitle} onChange={(e) => set("widgetTitle", e.target.value)} className="mt-1" />
-            <p className="mt-1 text-xs text-muted-foreground">Wird auf dem Widget-Hauptrechteck angezeigt.</p>
           </div>
           <div>
             <Label htmlFor="widgetSubtitle">Subtitel (optional)</Label>
@@ -116,56 +107,62 @@ export function TabAllgemein({ client }: { client: ClientData }) {
         </div>
       </section>
 
-      {/* Quick-Actions */}
+      {/* Akzentfarbe */}
       <section>
-        <h2 className="mb-1 text-sm font-semibold">Quick-Action-Buttons</h2>
-        <p className="mb-3 text-xs text-muted-foreground">Die 3 Schaltflächen oberhalb des Widgets.</p>
-        <div className="space-y-3">
-          {([1, 2, 3] as const).map((n) => (
-            <div key={n} className="flex gap-2">
-              <div className="flex-1">
-                <Label className="text-xs">Button {n} — Label</Label>
-                <Input
-                  value={form[`qa${n}Label` as keyof typeof form]}
-                  onChange={(e) => set(`qa${n}Label`, e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div className="w-48">
-                <Label className="text-xs">Ziel</Label>
-                <Select
-                  value={form[`qa${n}Target` as keyof typeof form]}
-                  onValueChange={(v) => v && set(`qa${n}Target`, v)}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {QA_TARGETS.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          ))}
+        <h2 className="mb-1 text-sm font-semibold">Akzentfarbe</h2>
+        <p className="mb-3 text-xs text-muted-foreground">Primärfarbe für Buttons, Icons und Highlights im Widget.</p>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-2">
+            {ACCENT_PRESETS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => set("accentColor", c)}
+                className="size-7 rounded-full border-2 transition-transform hover:scale-110"
+                style={{
+                  background: c,
+                  borderColor: form.accentColor === c ? "#000" : "transparent",
+                }}
+              />
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={form.accentColor}
+              onChange={(e) => set("accentColor", e.target.value)}
+              className="size-7 cursor-pointer rounded border"
+            />
+            <Input
+              value={form.accentColor}
+              onChange={(e) => set("accentColor", e.target.value)}
+              className="w-28 font-mono text-sm"
+              placeholder="#E30613"
+            />
+          </div>
+        </div>
+        <div className="mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+          <div className="size-4 rounded-full" style={{ background: form.accentColor }} />
+          <span>Vorschau: </span>
+          <button
+            className="rounded-md px-2.5 py-1 text-xs text-white"
+            style={{ background: form.accentColor }}
+          >
+            Termin anfragen
+          </button>
         </div>
       </section>
 
-      {/* Ländercode */}
+      {/* Standard-Ländercode */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold">Standard-Ländercode</h2>
-        <Select value={form.defaultCountryCode} onValueChange={(v) => v && set("defaultCountryCode", v)}>
-          <SelectTrigger className="w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {COUNTRY_CODES.map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="mt-1 text-xs text-muted-foreground">Vorauswahl im Mobilnummer-Feld des Formulars.</p>
+        <h2 className="mb-1 text-sm font-semibold">Standard-Ländercode</h2>
+        <p className="mb-2 text-xs text-muted-foreground">Vorauswahl im Mobilnummer-Feld (Standard: +41).</p>
+        <Input
+          value={form.defaultCountryCode}
+          onChange={(e) => set("defaultCountryCode", e.target.value)}
+          className="w-28"
+          placeholder="+41"
+        />
       </section>
 
       {/* Datenschutz */}

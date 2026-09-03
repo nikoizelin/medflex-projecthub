@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { WidgetApp } from "./widget-app";
-import type { FormStep } from "@/lib/reception-form-templates";
+import type { FormType } from "@/lib/reception-form-templates";
 
 export default async function WidgetPage({
   params,
@@ -32,6 +32,7 @@ export default async function WidgetPage({
         logoPath: client.logoPath,
         widgetTitle: client.widgetTitle || client.name,
         widgetSubtitle: client.widgetSubtitle,
+        accentColor: client.accentColor,
         defaultCountryCode: client.defaultCountryCode,
         elevenLabsAgentId: client.elevenLabsAgentId,
         privacyPolicyText: client.privacyPolicyText,
@@ -41,12 +42,13 @@ export default async function WidgetPage({
         qa3Label: client.qa3Label, qa3Target: client.qa3Target,
         fachrichtung: client.fachrichtung,
         introText: client.introText,
-        formSteps: (client.formSteps as unknown as FormStep[]) ?? [],
+        formSteps: (client.formSteps as unknown as FormType[]) ?? [],
         locations: client.locations.map((l) => ({
           id: l.id,
           name: l.name,
           address: l.address,
           phone: l.phone,
+          openingHoursText: l.openingHoursText,
           isDefault: l.isDefault,
           openingHours: l.openingHours.map((h) => ({
             dayOfWeek: h.dayOfWeek,

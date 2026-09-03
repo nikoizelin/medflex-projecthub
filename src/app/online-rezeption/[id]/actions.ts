@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import type { FormStep } from "@/lib/reception-form-templates";
+import type { FormType } from "@/lib/reception-form-templates";
 
 function path(id: string) {
   return `/online-rezeption/${id}`;
@@ -13,12 +13,10 @@ function path(id: string) {
 export async function updateClientGeneral(id: string, data: {
   widgetTitle: string;
   widgetSubtitle: string;
+  accentColor: string;
   defaultCountryCode: string;
   privacyPolicyText: string;
   privacyPolicyUrl: string;
-  qa1Label: string; qa1Target: string;
-  qa2Label: string; qa2Target: string;
-  qa3Label: string; qa3Target: string;
 }) {
   await prisma.receptionClient.update({ where: { id }, data });
   revalidatePath(path(id));
@@ -81,7 +79,7 @@ export async function createLocation(clientId: string) {
 }
 
 export async function updateLocation(locId: string, clientId: string, data: {
-  name: string; address: string; phone: string;
+  name: string; address: string; phone: string; openingHoursText: string;
 }) {
   await prisma.receptionLocation.update({ where: { id: locId }, data });
   revalidatePath(path(clientId));
@@ -139,10 +137,10 @@ export async function deleteNews(newsId: string, clientId: string) {
 
 // ─── Formular ─────────────────────────────────────────────────────────────────
 
-export async function updateFormSteps(id: string, steps: FormStep[]) {
+export async function updateFormSteps(id: string, formTypes: FormType[]) {
   await prisma.receptionClient.update({
     where: { id },
-    data: { formSteps: steps as object[] },
+    data: { formSteps: formTypes as object[] },
   });
   revalidatePath(path(id));
 }

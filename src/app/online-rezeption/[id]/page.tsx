@@ -43,7 +43,15 @@ export default async function ClientConfigPage({
         </p>
       </div>
 
-      <ClientConfig client={client as any} />
+      <ClientConfig client={{
+        ...client,
+        accentColor: client.accentColor,
+        formSteps: (client.formSteps as any) ?? [],
+        locations: client.locations.map((l) => ({
+          ...l,
+          openingHoursText: l.openingHoursText ?? "",
+        })),
+      }} />
     </div>
   );
 }

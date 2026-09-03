@@ -5,40 +5,33 @@ import { Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { createLocation, updateLocation, deleteLocation, updateOpeningHours } from "./actions";
+import { Textarea } from "@/components/ui/textarea";
+import { createLocation, updateLocation, deleteLocation } from "./actions";
 import type { ClientData } from "./client-config";
 
-const DAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
-
 type Location = ClientData["locations"][number];
-type Hours = Location["openingHours"][number];
 
 function LocationCard({ loc, clientId }: { loc: Location; clientId: string }) {
   const [expanded, setExpanded] = useState(true);
-  const [info, setInfo] = useState({ name: loc.name, address: loc.address, phone: loc.phone });
-  const [hours, setHours] = useState<Hours[]>(loc.openingHours);
-  const [infoSaved, setInfoSaved] = useState(false);
-  const [hoursSaved, setHoursSaved] = useState(false);
+  const [form, setForm] = useState({
+    name: loc.name,
+    address: loc.address,
+    phone: loc.phone,
+    openingHoursText: loc.openingHoursText,
+  });
+  const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  function saveInfo() {
-    startTransition(async () => {
-      await updateLocation(loc.id, clientId, info);
-      setInfoSaved(true);
-    });
+  function set(key: string, value: string) {
+    setForm((f) => ({ ...f, [key]: value }));
+    setSaved(false);
   }
 
-  function saveHours() {
+  function save() {
     startTransition(async () => {
-      await updateOpeningHours(loc.id, clientId, hours);
-      setHoursSaved(true);
+      await updateLocation(loc.id, clientId, form);
+      setSaved(true);
     });
-  }
-
-  function setHour(id: string, key: keyof Hours, value: string | boolean) {
-    setHours((h) => h.map((row) => row.id === id ? { ...row, [key]: value } : row));
-    setHoursSaved(false);
   }
 
   return (
@@ -48,78 +41,44 @@ function LocationCard({ loc, clientId }: { loc: Location; clientId: string }) {
         onClick={() => setExpanded((v) => !v)}
         className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium hover:bg-muted/30"
       >
-        {info.name || "Standort"}
+        {form.name || "Standort"}
         {expanded ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
       </button>
 
       {expanded && (
-        <div className="border-t px-4 pb-4 pt-3 space-y-5">
-          {/* Kontaktdaten */}
+        <div className="border-t px-4 pb-4 pt-3 space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label>Name des Standorts</Label>
-              <Input value={info.name} onChange={(e) => { setInfo((i) => ({ ...i, name: e.target.value })); setInfoSaved(false); }} className="mt-1" />
+              <Input value={form.name} onChange={(e) => set("name", e.target.value)} className="mt-1" />
             </div>
             <div>
               <Label>Telefon</Label>
-              <Input value={info.phone} placeholder="+41 44 000 00 00" onChange={(e) => { setInfo((i) => ({ ...i, phone: e.target.value })); setInfoSaved(false); }} className="mt-1" />
+              <Input value={form.phone} placeholder="+41 44 000 00 00" onChange={(e) => set("phone", e.target.value)} className="mt-1" />
             </div>
             <div className="sm:col-span-2">
               <Label>Adresse</Label>
-              <Input value={info.address} placeholder="Musterstrasse 1, 8001 Zürich" onChange={(e) => { setInfo((i) => ({ ...i, address: e.target.value })); setInfoSaved(false); }} className="mt-1" />
+              <Input value={form.address} placeholder="Musterstrasse 1, 8001 Zürich" onChange={(e) => set("address", e.target.value)} className="mt-1" />
             </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <Button size="sm" variant="outline" onClick={saveInfo} disabled={pending}>
-              {infoSaved ? "Gespeichert ✓" : "Kontaktdaten speichern"}
-            </Button>
-            <DeleteLocationButton locId={loc.id} clientId={clientId} />
           </div>
 
-          {/* Öffnungszeiten */}
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Öffnungszeiten</h3>
-            <div className="space-y-1.5">
-              {hours.map((h) => (
-                <div key={h.id} className="flex items-center gap-2 text-sm">
-                  <span className="w-24 shrink-0 text-muted-foreground">{DAYS[h.dayOfWeek]}</span>
-                  <Checkbox
-                    checked={h.isClosed}
-                    onCheckedChange={(v) => setHour(h.id, "isClosed", Boolean(v))}
-                    id={`closed-${h.id}`}
-                  />
-                  <label htmlFor={`closed-${h.id}`} className="w-16 shrink-0 text-xs text-muted-foreground">
-                    {h.isClosed ? "Geschlossen" : "Offen"}
-                  </label>
-                  {!h.isClosed && (
-                    <>
-                      <Input
-                        type="time"
-                        value={h.openTime}
-                        onChange={(e) => setHour(h.id, "openTime", e.target.value)}
-                        className="h-7 w-28 text-xs"
-                      />
-                      <span className="text-muted-foreground">–</span>
-                      <Input
-                        type="time"
-                        value={h.closeTime}
-                        onChange={(e) => setHour(h.id, "closeTime", e.target.value)}
-                        className="h-7 w-28 text-xs"
-                      />
-                      <Input
-                        value={h.note}
-                        placeholder="Hinweis (opt.)"
-                        onChange={(e) => setHour(h.id, "note", e.target.value)}
-                        className="h-7 flex-1 text-xs"
-                      />
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-            <Button size="sm" variant="outline" className="mt-3" onClick={saveHours} disabled={pending}>
-              {hoursSaved ? "Gespeichert ✓" : "Öffnungszeiten speichern"}
+            <Label>Öffnungszeiten</Label>
+            <p className="mb-1 text-xs text-muted-foreground">Freitext, z. B. «Mo–Fr 08:00–12:00, 13:30–17:00 | Sa geschlossen»</p>
+            <Textarea
+              value={form.openingHoursText}
+              placeholder={"Mo–Fr 08:00–12:00, 13:30–17:00\nSa–So geschlossen"}
+              onChange={(e) => set("openingHoursText", e.target.value)}
+              className="mt-1"
+              rows={3}
+            />
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <Button size="sm" onClick={save} disabled={pending}>
+              {saved ? "Gespeichert ✓" : pending ? "Speichert…" : "Speichern"}
             </Button>
+            <DeleteLocationButton locId={loc.id} clientId={clientId} />
           </div>
         </div>
       )}

@@ -1,298 +1,193 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Calendar, MessageCircle, MoreHorizontal, X, ChevronRight,
-  ChevronLeft, Paperclip, Phone, Mail, User, Users,
-  CheckCircle2, Clock, Newspaper, Mic, MicOff, Loader2,
-  MapPin, ExternalLink,
+  ChevronLeft, Paperclip, User, Users, CheckCircle2,
+  Clock, Newspaper, Mic, MicOff, Loader2, MapPin,
+  ExternalLink, Home, FileText, Plus, Trash2, House,
+  AlertCircle,
 } from "lucide-react";
-import type { FormStep, FormField } from "@/lib/reception-form-templates";
+import type { FormType, FormStep, FormField } from "@/lib/reception-form-templates";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Config types ─────────────────────────────────────────────────────────────
 
 interface OpeningHour {
-  dayOfWeek: number;
-  openTime: string;
-  closeTime: string;
-  isClosed: boolean;
-  note: string;
+  dayOfWeek: number; openTime: string; closeTime: string; isClosed: boolean; note: string;
 }
-
 interface Location {
-  id: string;
-  name: string;
-  address: string;
-  phone: string;
-  isDefault: boolean;
+  id: string; name: string; address: string; phone: string;
+  openingHoursText: string; isDefault: boolean;
   openingHours: OpeningHour[];
 }
-
 export interface WidgetConfig {
-  id: string;
-  slug: string;
-  name: string;
-  logoPath: string;
-  widgetTitle: string;
-  widgetSubtitle: string;
-  defaultCountryCode: string;
-  elevenLabsAgentId: string;
-  privacyPolicyText: string;
-  privacyPolicyUrl: string;
+  id: string; slug: string; name: string; logoPath: string;
+  widgetTitle: string; widgetSubtitle: string; accentColor: string;
+  defaultCountryCode: string; elevenLabsAgentId: string;
+  privacyPolicyText: string; privacyPolicyUrl: string;
   qa1Label: string; qa1Target: string;
   qa2Label: string; qa2Target: string;
   qa3Label: string; qa3Target: string;
-  fachrichtung: string;
-  introText: string;
-  formSteps: FormStep[];
+  fachrichtung: string; introText: string;
+  formSteps: FormType[];
   locations: Location[];
   news: { id: string; title: string; body: string }[];
 }
 
-type WidgetView = "teaser" | "panel" | "collapsed";
-type PanelTab = "startseite" | "formular" | "chat";
+type PanelTab = "home" | "formular" | "chat";
 type ForSelf = "self" | "proxy";
 
-const DAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+// ─── Contact data (shared between form and chat) ───────────────────────────
 
-// ─── Styles (explicit light colours, iframe-safe) ─────────────────────────────
+interface ContactData {
+  forSelf: ForSelf; proxyName: string; proxyBirthdate: string;
+  firstName: string; lastName: string; birthdate: string;
+  phone: string; email: string; countryCode: string;
+  privacyConsent: boolean;
+}
 
-const S = {
-  // container
-  outer: "fixed bottom-5 right-5 flex flex-col items-end gap-2",
-  // quick-action strip
-  strip: "flex gap-1.5",
-  qaBtn: "flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors cursor-pointer",
-  // teaser rectangle
-  rect: "flex w-80 cursor-pointer items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3.5 shadow-md hover:shadow-lg transition-shadow",
-  // collapsed circle
-  circle: "flex size-14 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-white shadow-lg hover:shadow-xl transition-shadow",
-  // panel
-  panel: "flex w-80 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl",
-  panelHeader: "flex items-center gap-2.5 border-b border-gray-100 px-4 py-3",
-  tabBar: "flex border-b border-gray-100",
-  tab: "flex-1 py-2.5 text-xs font-medium transition-colors",
-  tabActive: "border-b-2 border-red-600 text-red-600",
-  tabInactive: "text-gray-400 hover:text-gray-700",
-  // overlay
-  overlay: "fixed inset-0 flex items-end justify-end p-5",
-  overlayCard: "w-80 rounded-2xl border border-gray-200 bg-white p-5 shadow-xl",
-  // buttons
-  btn: "w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 transition-colors",
-  btnOutline: "w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors",
-  btnSm: "rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 transition-colors",
-  btnSmOutline: "rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors",
-  // form
-  input: "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100",
+const EMPTY_CONTACT = (cc: string): ContactData => ({
+  forSelf: "self", proxyName: "", proxyBirthdate: "",
+  firstName: "", lastName: "", birthdate: "",
+  phone: "", email: "", countryCode: cc, privacyConsent: false,
+});
+
+// ─── Country data ─────────────────────────────────────────────────────────────
+
+const COUNTRIES = [
+  { code: "+41", flag: "🇨🇭", name: "CH" },
+  { code: "+49", flag: "🇩🇪", name: "DE" },
+  { code: "+43", flag: "🇦🇹", name: "AT" },
+  { code: "+33", flag: "🇫🇷", name: "FR" },
+  { code: "+39", flag: "🇮🇹", name: "IT" },
+  { code: "+44", flag: "🇬🇧", name: "GB" },
+  { code: "+1",  flag: "🇺🇸", name: "US" },
+];
+
+// ─── CSS helpers ──────────────────────────────────────────────────────────────
+
+function btn(accent: string) {
+  return { style: { background: accent, color: "#fff" } };
+}
+function ring(accent: string) {
+  return { style: { outline: `2px solid ${accent}`, outlineOffset: "2px" } };
+}
+
+const BASE = {
+  input: "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-transparent focus:ring-2 focus:ring-gray-300",
   label: "block text-xs font-medium text-gray-700 mb-1",
-  // misc
-  muted: "text-xs text-gray-400",
+  btnSm: "rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90",
+  btnSmOut: "rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors",
 };
+
+// ─── Logo/Avatar ──────────────────────────────────────────────────────────────
+
+function LogoMark({ config, size = 8 }: { config: WidgetConfig; size?: number }) {
+  if (config.logoPath) {
+    return <img src={config.logoPath} alt={config.name} className={`size-${size} rounded-lg object-contain`} />;
+  }
+  return (
+    <div
+      className={`flex size-${size} shrink-0 items-center justify-center rounded-lg text-white font-bold`}
+      style={{ background: config.accentColor, fontSize: size > 8 ? 18 : 13 }}
+    >
+      {config.name.charAt(0)}
+    </div>
+  );
+}
 
 // ─── Privacy Overlay ──────────────────────────────────────────────────────────
 
-function PrivacyOverlay({ config, onAccept }: { config: WidgetConfig; onAccept: () => void }) {
+function PrivacyOverlay({ config, onAccept, onDecline }: {
+  config: WidgetConfig; onAccept: () => void; onDecline: () => void;
+}) {
   return (
-    <div className={S.overlay} style={{ pointerEvents: "auto" }}>
-      <div className={S.overlayCard}>
-        <div className="mb-3 flex items-center gap-2.5">
-          {config.logoPath ? (
-            <img src={config.logoPath} alt={config.name} className="size-8 rounded-lg object-contain" />
-          ) : (
-            <div className="flex size-8 items-center justify-center rounded-lg bg-red-600 text-white text-xs font-bold">
-              {config.name.charAt(0)}
-            </div>
-          )}
-          <span className="font-semibold text-gray-900">{config.widgetTitle}</span>
-        </div>
-        <p className="mb-4 text-sm text-gray-600">
-          {config.privacyPolicyText || "Zur Nutzung dieser Online-Rezeption müssen Sie unsere Datenschutzbestimmungen akzeptieren."}
-        </p>
-        {config.privacyPolicyUrl && (
-          <a
-            href={config.privacyPolicyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mb-3 inline-flex items-center gap-1 text-xs text-red-600 hover:underline"
-          >
-            Datenschutzerklärung lesen <ExternalLink className="size-3" />
-          </a>
-        )}
-        <button className={S.btn} onClick={onAccept}>
-          Verstanden & Fortfahren
-        </button>
-        <p className="mt-3 text-center text-[10px] text-gray-400">
-          Ein Produkt von{" "}
-          <a href="https://medflex-schweiz.ch" target="_blank" rel="noopener noreferrer" className="underline">
-            MedFlex
-          </a>
-        </p>
+    <div className="absolute inset-0 z-50 flex flex-col rounded-2xl bg-white p-5">
+      <div className="mb-4 flex items-center gap-2.5">
+        <LogoMark config={config} size={8} />
+        <span className="font-semibold text-gray-900 text-sm">{config.widgetTitle}</span>
       </div>
+      <p className="mb-4 text-sm text-gray-700 leading-relaxed flex-1">
+        {config.privacyPolicyText || "Zur Nutzung dieser Online-Rezeption bitten wir Sie, unsere Datenschutzbestimmungen zu akzeptieren."}
+      </p>
+      {config.privacyPolicyUrl && (
+        <a href={config.privacyPolicyUrl} target="_blank" rel="noopener noreferrer"
+          className="mb-4 inline-flex items-center gap-1 text-xs underline" style={{ color: config.accentColor }}>
+          Datenschutzerklärung lesen <ExternalLink className="size-3" />
+        </a>
+      )}
+      <button className={`${BASE.btnSm} w-full py-2.5 text-sm`} {...btn(config.accentColor)} onClick={onAccept}>
+        Akzeptieren & Fortfahren
+      </button>
+      <button onClick={onDecline} className="mt-2 text-center text-xs text-gray-400 hover:text-gray-600">
+        Ablehnen
+      </button>
+    </div>
+  );
+}
+
+function PrivacyDeclinedScreen({ onAccept }: { onAccept: () => void }) {
+  return (
+    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-2xl bg-white p-6 text-center">
+      <AlertCircle className="mb-3 size-10 text-gray-400" />
+      <p className="mb-1 font-semibold text-gray-900">Online-Rezeption nicht verfügbar</p>
+      <p className="mb-5 text-sm text-gray-500">
+        Ohne Akzeptieren der Datenschutzbestimmungen kann die Online-Rezeption nicht genutzt werden.
+      </p>
+      <button className={`${BASE.btnSm} px-6 py-2`} onClick={onAccept}
+        style={{ background: "#374151", color: "#fff" }}>
+        Datenschutz akzeptieren
+      </button>
     </div>
   );
 }
 
 // ─── Location Selector ────────────────────────────────────────────────────────
 
-function LocationSelector({
-  locations,
-  onSelect,
-}: {
-  locations: Location[];
-  onSelect: (loc: Location) => void;
+function LocationSelector({ locations, onSelect }: {
+  locations: Location[]; onSelect: (loc: Location) => void;
 }) {
   return (
-    <div className={S.overlay} style={{ pointerEvents: "auto" }}>
-      <div className={S.overlayCard}>
-        <p className="mb-3 font-semibold text-gray-900">Bitte wählen Sie Ihren Standort</p>
-        <div className="space-y-2">
-          {locations.map((loc) => (
-            <button
-              key={loc.id}
-              className="flex w-full items-start gap-3 rounded-lg border border-gray-200 p-3 text-left hover:bg-gray-50 transition-colors"
-              onClick={() => onSelect(loc)}
-            >
-              <MapPin className="mt-0.5 size-4 shrink-0 text-red-600" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">{loc.name}</p>
-                {loc.address && <p className="text-xs text-gray-500">{loc.address}</p>}
-                {loc.phone && <p className="text-xs text-gray-500">{loc.phone}</p>}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Opening Hours ────────────────────────────────────────────────────────────
-
-function OpeningHoursTable({ hours }: { hours: OpeningHour[] }) {
-  const today = (new Date().getDay() + 6) % 7; // 0=Mo
-  return (
-    <div className="space-y-1">
-      {hours.map((h) => (
-        <div key={h.dayOfWeek} className={`flex text-xs ${h.dayOfWeek === today ? "font-semibold text-gray-900" : "text-gray-600"}`}>
-          <span className="w-24 shrink-0">{DAYS[h.dayOfWeek]}</span>
-          {h.isClosed ? (
-            <span className="text-gray-400">Geschlossen</span>
-          ) : (
-            <span>{h.openTime} – {h.closeTime}{h.note ? ` (${h.note})` : ""}</span>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Form Step Renderer ───────────────────────────────────────────────────────
-
-function FieldRenderer({
-  field,
-  value,
-  onChange,
-}: {
-  field: FormField;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  if (field.type === "radio") {
-    return (
-      <div className="space-y-2">
-        {(field.options ?? []).map((opt) => (
-          <label key={opt} className="flex items-center gap-2.5 cursor-pointer">
-            <input
-              type="radio"
-              name={field.id}
-              value={opt}
-              checked={value === opt}
-              onChange={() => onChange(opt)}
-              className="accent-red-600"
-            />
-            <span className="text-sm text-gray-700">{opt}</span>
-          </label>
+    <div className="absolute inset-0 z-40 flex flex-col rounded-2xl bg-white p-5">
+      <p className="mb-3 font-semibold text-gray-900 text-sm">Bitte wählen Sie Ihren Standort</p>
+      <div className="space-y-2 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
+        {locations.map((loc) => (
+          <button key={loc.id} onClick={() => onSelect(loc)}
+            className="flex w-full items-start gap-3 rounded-xl border border-gray-100 p-3 text-left hover:bg-gray-50 transition-colors">
+            <MapPin className="mt-0.5 size-4 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-gray-900">{loc.name}</p>
+              {loc.address && <p className="text-xs text-gray-500">{loc.address}</p>}
+              {loc.phone && <p className="text-xs text-gray-500">{loc.phone}</p>}
+            </div>
+          </button>
         ))}
       </div>
-    );
-  }
-  if (field.type === "select") {
-    return (
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={S.input}>
-        <option value="">Bitte wählen …</option>
-        {(field.options ?? []).map((opt) => (
-          <option key={opt} value={opt}>{opt}</option>
-        ))}
-      </select>
-    );
-  }
-  if (field.type === "textarea") {
-    return (
-      <textarea
-        value={value}
-        placeholder={field.placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        className={S.input}
-        rows={3}
-      />
-    );
-  }
-  return (
-    <input
-      type={field.type === "date" ? "date" : field.type === "time" ? "time" : field.type === "number" ? "number" : "text"}
-      value={value}
-      placeholder={field.placeholder}
-      onChange={(e) => onChange(e.target.value)}
-      className={S.input}
-    />
+    </div>
   );
 }
 
 // ─── Contact Step ─────────────────────────────────────────────────────────────
 
-interface ContactData {
-  forSelf: ForSelf;
-  proxyName: string;
-  proxyBirthdate: string;
-  firstName: string;
-  lastName: string;
-  birthdate: string;
-  phone: string;
-  email: string;
-  countryCode: string;
-}
-
-function ContactStep({
-  defaultCountryCode,
-  data,
-  onChange,
-}: {
-  defaultCountryCode: string;
-  data: ContactData;
-  onChange: (d: ContactData) => void;
+function ContactStep({ config, data, onChange }: {
+  config: WidgetConfig; data: ContactData; onChange: (d: ContactData) => void;
 }) {
-  function set(key: keyof ContactData, value: string) {
+  function set(key: keyof ContactData, value: string | boolean) {
     onChange({ ...data, [key]: value });
   }
+  const country = COUNTRIES.find((c) => c.code === data.countryCode) ?? COUNTRIES[0];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div>
-        <label className={S.label}>Für wen stellen Sie diese Anfrage?</label>
+        <label className={BASE.label}>Für wen stellen Sie diese Anfrage?</label>
         <div className="flex gap-2">
           {(["self", "proxy"] as ForSelf[]).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => set("forSelf", v)}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
-                data.forSelf === v
-                  ? "border-red-600 bg-red-50 text-red-700"
-                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
-              }`}
-            >
+            <button key={v} type="button" onClick={() => set("forSelf", v)}
+              className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors"
+              style={data.forSelf === v ? { borderColor: config.accentColor, background: config.accentColor + "18", color: config.accentColor } : { borderColor: "#e5e7eb", color: "#374151" }}>
               {v === "self" ? <User className="size-3.5" /> : <Users className="size-3.5" />}
-              {v === "self" ? "Für mich selbst" : "Als Vertretung"}
+              {v === "self" ? "Für mich" : "Als Vertretung"}
             </button>
           ))}
         </div>
@@ -300,272 +195,306 @@ function ContactStep({
 
       {data.forSelf === "proxy" && (
         <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-2">
-          <p className="text-xs font-medium text-gray-700">Angaben zur vertretenen Person</p>
+          <p className="text-xs font-medium text-gray-700">Vertretene Person</p>
           <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className={S.label}>Vorname</label>
-              <input value={data.proxyName.split(" ")[0] ?? ""} onChange={(e) => set("proxyName", `${e.target.value} ${data.proxyName.split(" ").slice(1).join(" ")}`.trim())} className={S.input} placeholder="Vorname" />
-            </div>
-            <div>
-              <label className={S.label}>Nachname</label>
-              <input value={data.proxyName.split(" ").slice(1).join(" ")} onChange={(e) => set("proxyName", `${data.proxyName.split(" ")[0] ?? ""} ${e.target.value}`.trim())} className={S.input} placeholder="Nachname" />
-            </div>
+            <div><label className={BASE.label}>Vorname</label><input className={BASE.input} placeholder="Vorname" value={data.proxyName.split(" ")[0] ?? ""} onChange={(e) => set("proxyName", `${e.target.value} ${data.proxyName.split(" ").slice(1).join(" ")}`.trim())} /></div>
+            <div><label className={BASE.label}>Nachname</label><input className={BASE.input} placeholder="Nachname" value={data.proxyName.split(" ").slice(1).join(" ")} onChange={(e) => set("proxyName", `${data.proxyName.split(" ")[0] ?? ""} ${e.target.value}`.trim())} /></div>
           </div>
-          <div>
-            <label className={S.label}>Geburtsdatum</label>
-            <input type="date" value={data.proxyBirthdate} onChange={(e) => set("proxyBirthdate", e.target.value)} className={S.input} />
-          </div>
+          <div><label className={BASE.label}>Geburtsdatum</label><input type="date" className={BASE.input} value={data.proxyBirthdate} onChange={(e) => set("proxyBirthdate", e.target.value)} /></div>
         </div>
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className={S.label}>Vorname</label>
-          <input value={data.firstName} onChange={(e) => set("firstName", e.target.value)} className={S.input} placeholder="Vorname" />
-        </div>
-        <div>
-          <label className={S.label}>Nachname</label>
-          <input value={data.lastName} onChange={(e) => set("lastName", e.target.value)} className={S.input} placeholder="Nachname" />
-        </div>
+        <div><label className={BASE.label}>Vorname</label><input className={BASE.input} placeholder="Vorname" value={data.firstName} onChange={(e) => set("firstName", e.target.value)} /></div>
+        <div><label className={BASE.label}>Nachname</label><input className={BASE.input} placeholder="Nachname" value={data.lastName} onChange={(e) => set("lastName", e.target.value)} /></div>
       </div>
+      <div><label className={BASE.label}>Geburtsdatum</label><input type="date" className={BASE.input} value={data.birthdate} onChange={(e) => set("birthdate", e.target.value)} /></div>
 
       <div>
-        <label className={S.label}>Geburtsdatum</label>
-        <input type="date" value={data.birthdate} onChange={(e) => set("birthdate", e.target.value)} className={S.input} />
-      </div>
-
-      <div>
-        <label className={S.label}>Mobilnummer</label>
+        <label className={BASE.label}>Mobilnummer</label>
         <div className="flex gap-1.5">
           <select
             value={data.countryCode}
             onChange={(e) => set("countryCode", e.target.value)}
-            className="rounded-lg border border-gray-200 px-2 py-2 text-sm outline-none focus:border-red-400 w-20"
+            className="rounded-lg border border-gray-200 bg-white px-2 py-2 text-sm text-gray-900 outline-none"
+            style={{ minWidth: 72 }}
           >
-            {["+41", "+49", "+43", "+33", "+39", "+44"].map((c) => (
-              <option key={c} value={c}>{c}</option>
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>{c.flag} {c.code}</option>
             ))}
           </select>
-          <input
-            type="tel"
-            value={data.phone}
-            onChange={(e) => set("phone", e.target.value)}
-            className={`${S.input} flex-1`}
-            placeholder="079 000 00 00"
-          />
+          <input type="tel" className={`${BASE.input} flex-1`} placeholder="079 000 00 00" value={data.phone} onChange={(e) => set("phone", e.target.value)} />
         </div>
       </div>
+      <div><label className={BASE.label}>E-Mail</label><input type="email" className={BASE.input} placeholder="name@beispiel.ch" value={data.email} onChange={(e) => set("email", e.target.value)} /></div>
 
-      <div>
-        <label className={S.label}>E-Mail</label>
-        <input type="email" value={data.email} onChange={(e) => set("email", e.target.value)} className={S.input} placeholder="name@beispiel.ch" />
-      </div>
+      {/* Privacy checkbox */}
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input type="checkbox" checked={data.privacyConsent} onChange={(e) => set("privacyConsent", e.target.checked)} className="mt-0.5 accent-current" style={{ accentColor: config.accentColor }} />
+        <span className="text-xs text-gray-600">
+          Ich stimme der Verarbeitung meiner Daten gemäss{" "}
+          <a href="https://medflex-schweiz.ch/datenschutz" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: config.accentColor }}>Datenschutzerklärung</a>
+          {" "}zu.
+        </span>
+      </label>
     </div>
   );
 }
 
-// ─── Form Flow ────────────────────────────────────────────────────────────────
+// ─── Medication List Field ─────────────────────────────────────────────────────
 
-type FormState = "idle" | "steps" | "contact" | "uploading" | "success";
-
-function FormTab({
-  config,
-  location,
-}: {
-  config: WidgetConfig;
-  location: Location | null;
+function MedicationListField({ value, onChange, accent }: {
+  value: string; onChange: (v: string) => void; accent: string;
 }) {
-  const [formState, setFormState] = useState<FormState>("idle");
+  const items = value ? value.split("\n").filter(Boolean) : [];
+
+  function addItem() {
+    onChange([...items, ""].join("\n"));
+  }
+  function updateItem(i: number, v: string) {
+    const next = [...items]; next[i] = v; onChange(next.join("\n"));
+  }
+  function removeItem(i: number) {
+    onChange(items.filter((_, idx) => idx !== i).join("\n"));
+  }
+
+  return (
+    <div className="space-y-2">
+      {items.map((item, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <span className="text-xs text-gray-400 w-5 shrink-0 text-right">{i + 1}.</span>
+          <input
+            className={`${BASE.input} flex-1`}
+            placeholder="Medikament, Dosierung, Menge …"
+            value={item}
+            onChange={(e) => updateItem(i, e.target.value)}
+          />
+          <button type="button" onClick={() => removeItem(i)} className="text-gray-400 hover:text-red-500">
+            <X className="size-4" />
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={addItem}
+        className="inline-flex items-center gap-1.5 text-xs font-medium" style={{ color: accent }}>
+        <Plus className="size-3.5" /> Medikament hinzufügen
+      </button>
+    </div>
+  );
+}
+
+// ─── Field Renderer ───────────────────────────────────────────────────────────
+
+function FieldRenderer({ field, value, onChange, accent }: {
+  field: FormField; value: string; onChange: (v: string) => void; accent: string;
+}) {
+  const [sonstigesText, setSonstigesText] = useState("");
+
+  if (field.type === "medication_list") {
+    return <MedicationListField value={value} onChange={onChange} accent={accent} />;
+  }
+
+  if (field.type === "radio") {
+    return (
+      <div className="space-y-2">
+        {(field.options ?? []).map((opt) => {
+          const isOther = opt.toLowerCase().startsWith("sonstig");
+          const isSelected = value === opt || (isOther && value.startsWith("Sonstiges:"));
+          return (
+            <div key={opt}>
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="radio" name={field.id} value={opt}
+                  checked={isSelected}
+                  onChange={() => {
+                    onChange(isOther ? (sonstigesText ? `Sonstiges: ${sonstigesText}` : opt) : opt);
+                  }}
+                  style={{ accentColor: accent }}
+                />
+                <span className="text-sm text-gray-800">{opt}</span>
+              </label>
+              {isOther && isSelected && (
+                <input
+                  className={`${BASE.input} mt-1.5 ml-6`}
+                  placeholder="Bitte beschreiben …"
+                  value={sonstigesText}
+                  onChange={(e) => { setSonstigesText(e.target.value); onChange(`Sonstiges: ${e.target.value}`); }}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  if (field.type === "select") {
+    return (
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={BASE.input}>
+        <option value="">Bitte wählen …</option>
+        {(field.options ?? []).map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+      </select>
+    );
+  }
+  if (field.type === "textarea") {
+    return <textarea value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={BASE.input} rows={3} />;
+  }
+  return (
+    <input
+      type={field.type === "date" ? "date" : field.type === "time" ? "time" : field.type === "number" ? "number" : "text"}
+      value={value} placeholder={field.placeholder}
+      onChange={(e) => onChange(e.target.value)} className={BASE.input}
+    />
+  );
+}
+
+// ─── Form Tab ─────────────────────────────────────────────────────────────────
+
+type FormPhase = "picker" | "steps" | "contact" | "uploading" | "success";
+
+function FormTab({ config, location, contact, setContact }: {
+  config: WidgetConfig; location: Location | null;
+  contact: ContactData; setContact: (d: ContactData) => void;
+}) {
+  const [phase, setPhase] = useState<FormPhase>("picker");
+  const [selectedType, setSelectedType] = useState<FormType | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [files, setFiles] = useState<File[]>([]);
-  const [contact, setContact] = useState<ContactData>({
-    forSelf: "self",
-    proxyName: "",
-    proxyBirthdate: "",
-    firstName: "",
-    lastName: "",
-    birthdate: "",
-    phone: "",
-    email: "",
-    countryCode: config.defaultCountryCode,
-  });
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const steps = config.formSteps;
-  const currentStep = steps[stepIndex];
-
-  function setAnswer(fieldId: string, value: string) {
-    setAnswers((a) => ({ ...a, [fieldId]: value }));
-  }
+  const accent = config.accentColor;
 
   function canProceed(): boolean {
-    if (!currentStep) return true;
-    return currentStep.fields.filter((f) => f.required).every((f) => !!answers[f.id]);
+    const step = selectedType?.steps[stepIndex];
+    if (!step) return true;
+    return step.fields.filter((f) => f.required).every((f) => !!answers[f.id]);
   }
-
   function canSubmit(): boolean {
-    return !!(contact.firstName && contact.lastName && contact.email && contact.phone);
+    return !!(contact.firstName && contact.lastName && contact.email && contact.phone && contact.privacyConsent);
   }
 
   async function submit() {
-    setFormState("uploading");
+    setPhase("uploading");
     try {
       const fd = new FormData();
       fd.append("clientId", config.id);
+      fd.append("formTypeId", selectedType?.id ?? "");
+      fd.append("formTypeTitle", selectedType?.title ?? "");
       fd.append("answers", JSON.stringify(answers));
       fd.append("contact", JSON.stringify(contact));
       fd.append("location", JSON.stringify(location));
       files.forEach((f) => fd.append("files", f));
       await fetch(`/api/widget/${config.slug}/submit`, { method: "POST", body: fd });
-    } catch {
-      // best-effort
-    }
-    setFormState("success");
+    } catch {}
+    setPhase("success");
   }
 
-  if (formState === "success") {
+  if (phase === "success") {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center">
         <CheckCircle2 className="mb-3 size-12 text-green-500" />
         <p className="font-semibold text-gray-900">Anfrage eingegangen!</p>
-        <p className="mt-1 text-sm text-gray-500">
-          Wir melden uns in Kürze bei Ihnen. Eine Bestätigung wurde an Ihre E-Mail gesendet.
-        </p>
-        <button className={`${S.btnSm} mt-4`} onClick={() => { setFormState("idle"); setAnswers({}); setFiles([]); setStepIndex(0); }}>
+        <p className="mt-1 text-sm text-gray-500">Sie erhalten in Kürze eine Bestätigung per E-Mail.</p>
+        <button className={`${BASE.btnSm} mt-4 px-5 py-2`} {...btn(accent)}
+          onClick={() => { setPhase("picker"); setSelectedType(null); setAnswers({}); setFiles([]); setStepIndex(0); }}>
           Neue Anfrage
         </button>
       </div>
     );
   }
 
-  if (formState === "uploading") {
-    return (
-      <div className="flex flex-col items-center justify-center py-10">
-        <Loader2 className="mb-3 size-8 animate-spin text-red-600" />
-        <p className="text-sm text-gray-600">Anfrage wird gesendet …</p>
-      </div>
-    );
+  if (phase === "uploading") {
+    return <div className="flex flex-col items-center justify-center py-10"><Loader2 className="mb-3 size-8 animate-spin" style={{ color: accent }} /><p className="text-sm text-gray-600">Anfrage wird gesendet …</p></div>;
   }
 
-  if (formState === "idle") {
-    if (steps.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center py-10 text-center">
-          <p className="text-sm text-gray-500">Kein Formular konfiguriert.</p>
-        </div>
-      );
+  // Picker
+  if (phase === "picker" || !selectedType) {
+    if (config.formSteps.length === 0) {
+      return <div className="flex flex-col items-center justify-center py-10 text-center"><FileText className="mb-3 size-10 text-gray-200" /><p className="text-sm text-gray-500">Kein Formular konfiguriert.</p></div>;
     }
     return (
-      <div className="space-y-3 py-2">
-        <p className="text-sm text-gray-700">Was können wir für Sie tun?</p>
-        <button className={S.btn} onClick={() => setFormState("steps")}>
-          Formular starten
-        </button>
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-gray-800">Was können wir für Sie tun?</p>
+        <div className="grid grid-cols-2 gap-2">
+          {config.formSteps.map((ft) => (
+            <button key={ft.id} onClick={() => { setSelectedType(ft); setStepIndex(0); setPhase("steps"); }}
+              className="flex flex-col items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3.5 text-center hover:bg-gray-100 transition-colors">
+              <Calendar className="size-5" style={{ color: accent }} />
+              <span className="text-xs font-medium text-gray-800 leading-tight">{ft.title}</span>
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
 
-  if (formState === "contact") {
+  if (phase === "contact") {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span>Schritt {steps.length + 1} / {steps.length + 1}</span>
-          <span>— Kontaktdaten</span>
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setPhase("steps")} className="text-gray-400 hover:text-gray-700"><ChevronLeft className="size-4" /></button>
+          <p className="text-sm font-semibold text-gray-900">Kontaktdaten</p>
         </div>
-        <div className="overflow-y-auto" style={{ maxHeight: 320 }}>
-          <ContactStep defaultCountryCode={config.defaultCountryCode} data={contact} onChange={setContact} />
+        <div className="overflow-y-auto" style={{ maxHeight: 330, scrollbarWidth: "none" }}>
+          <ContactStep config={config} data={contact} onChange={setContact} />
         </div>
         {/* File upload */}
         <div>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800"
-          >
+          <button type="button" onClick={() => fileRef.current?.click()}
+            className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800">
             <Paperclip className="size-3.5" />
-            Dateien/Fotos hinzufügen {files.length > 0 && `(${files.length})`}
+            Dateien/Fotos hinzufügen{files.length > 0 ? ` (${files.length})` : ""}
           </button>
-          <input
-            ref={fileRef}
-            type="file"
-            multiple
-            accept="image/*,.pdf,.doc,.docx"
-            className="hidden"
-            onChange={(e) => {
-              const selected = Array.from(e.target.files ?? []);
-              setFiles((f) => [...f, ...selected]);
-            }}
-          />
-          {files.length > 0 && (
-            <div className="mt-1.5 space-y-1">
-              {files.map((f, i) => (
-                <div key={i} className="flex items-center justify-between text-xs text-gray-600">
-                  <span className="truncate">{f.name}</span>
-                  <button onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))} className="ml-2 text-gray-400 hover:text-red-500">
-                    <X className="size-3.5" />
-                  </button>
-                </div>
-              ))}
+          <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden"
+            onChange={(e) => setFiles((f) => [...f, ...Array.from(e.target.files ?? [])])} />
+          {files.map((f, i) => (
+            <div key={i} className="mt-1 flex items-center justify-between text-xs text-gray-600">
+              <span className="truncate">{f.name}</span>
+              <button onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))} className="ml-2 text-gray-400 hover:text-red-500"><X className="size-3.5" /></button>
             </div>
-          )}
+          ))}
         </div>
-
-        <div className="flex gap-2">
-          <button className={S.btnSmOutline} onClick={() => setFormState("steps")}>
-            <ChevronLeft className="inline size-3.5" /> Zurück
-          </button>
-          <button className={`${S.btnSm} flex-1`} onClick={submit} disabled={!canSubmit()}>
-            Absenden
-          </button>
-        </div>
+        <button className={`${BASE.btnSm} w-full py-2.5`} {...btn(accent)} disabled={!canSubmit()} onClick={submit}>
+          Absenden
+        </button>
+        {!canSubmit() && <p className="text-center text-xs text-gray-400">Alle Pflichtfelder ausfüllen und Datenschutz akzeptieren</p>}
       </div>
     );
   }
 
-  // formState === "steps"
+  // Steps
+  const step = selectedType.steps[stepIndex];
+  if (!step) { setPhase("contact"); return null; }
+  const total = selectedType.steps.length + 1;
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 text-xs text-gray-500">
-        <span>Schritt {stepIndex + 1} / {steps.length + 1}</span>
-        {currentStep?.subtitle && <span>— {currentStep.subtitle}</span>}
+      {/* Progress */}
+      <div>
+        <div className="mb-1 flex justify-between text-xs text-gray-400">
+          <span>{selectedType.title}</span>
+          <span>{stepIndex + 1}/{total}</span>
+        </div>
+        <div className="h-1 rounded-full bg-gray-100"><div className="h-full rounded-full transition-all" style={{ width: `${((stepIndex + 1) / total) * 100}%`, background: config.accentColor }} /></div>
       </div>
 
-      {currentStep && (
-        <>
-          <p className="text-sm font-semibold text-gray-900">{currentStep.title}</p>
-          <div className="overflow-y-auto space-y-4" style={{ maxHeight: 260 }}>
-            {currentStep.fields.map((f) => (
-              <div key={f.id}>
-                <label className={`${S.label} ${f.required ? "after:ml-0.5 after:text-red-500 after:content-['*']" : ""}`}>
-                  {f.label}
-                </label>
-                <FieldRenderer field={f} value={answers[f.id] ?? ""} onChange={(v) => setAnswer(f.id, v)} />
-              </div>
-            ))}
+      <p className="text-sm font-semibold text-gray-900">{step.title}</p>
+      {step.subtitle && <p className="text-xs text-gray-500">{step.subtitle}</p>}
+
+      <div className="overflow-y-auto space-y-4" style={{ maxHeight: 260, scrollbarWidth: "none" }}>
+        {step.fields.map((f) => (
+          <div key={f.id}>
+            <label className={`${BASE.label}${f.required ? " after:ml-0.5 after:text-red-500 after:content-['*']" : ""}`}>{f.label}</label>
+            <FieldRenderer field={f} value={answers[f.id] ?? ""} onChange={(v) => setAnswers((a) => ({ ...a, [f.id]: v }))} accent={config.accentColor} />
           </div>
-        </>
-      )}
+        ))}
+      </div>
 
       <div className="flex gap-2">
-        {stepIndex > 0 && (
-          <button className={S.btnSmOutline} onClick={() => setStepIndex((i) => i - 1)}>
-            <ChevronLeft className="inline size-3.5" /> Zurück
-          </button>
-        )}
-        <button
-          className={`${S.btnSm} flex-1`}
-          disabled={!canProceed()}
-          onClick={() => {
-            if (stepIndex < steps.length - 1) setStepIndex((i) => i + 1);
-            else setFormState("contact");
-          }}
-        >
-          {stepIndex < steps.length - 1 ? (
-            <span>Weiter <ChevronRight className="inline size-3.5" /></span>
-          ) : (
-            "Zu den Kontaktdaten"
-          )}
+        <button className={BASE.btnSmOut} onClick={() => stepIndex > 0 ? setStepIndex((i) => i - 1) : (setPhase("picker"), setSelectedType(null))}>
+          <ChevronLeft className="inline size-3.5" /> Zurück
+        </button>
+        <button className={`${BASE.btnSm} flex-1`} {...btn(config.accentColor)} disabled={!canProceed()}
+          onClick={() => stepIndex < selectedType.steps.length - 1 ? setStepIndex((i) => i + 1) : setPhase("contact")}>
+          {stepIndex < selectedType.steps.length - 1 ? <span>Weiter <ChevronRight className="inline size-3.5" /></span> : "Kontaktdaten"}
         </button>
       </div>
     </div>
@@ -574,215 +503,176 @@ function FormTab({
 
 // ─── Chat Tab ─────────────────────────────────────────────────────────────────
 
-type ChatState = "idle" | "contact" | "connecting" | "active" | "ended";
+type ChatPhase = "idle" | "contact" | "connecting" | "active" | "ended";
 
-function ChatTab({ config, location, onOpenForm }: {
-  config: WidgetConfig;
-  location: Location | null;
+function ChatTab({ config, location, contact, setContact, onOpenForm }: {
+  config: WidgetConfig; location: Location | null;
+  contact: ContactData; setContact: (d: ContactData) => void;
   onOpenForm: () => void;
 }) {
-  const [chatState, setChatState] = useState<ChatState>("idle");
-  const [contact, setContact] = useState<ContactData>({
-    forSelf: "self", proxyName: "", proxyBirthdate: "",
-    firstName: "", lastName: "", birthdate: "",
-    phone: "", email: "", countryCode: config.defaultCountryCode,
-  });
+  const [phase, setPhase] = useState<ChatPhase>("idle");
   const [isMuted, setIsMuted] = useState(false);
-  const conversationRef = useRef<unknown>(null);
+  const convRef = useRef<unknown>(null);
+  const accent = config.accentColor;
 
   function canStart() {
-    return !!(contact.firstName && contact.lastName && contact.email && contact.phone);
+    return !!(contact.firstName && contact.lastName && contact.email && contact.phone && contact.privacyConsent);
   }
 
   async function startChat() {
     if (!config.elevenLabsAgentId) return;
-    setChatState("connecting");
+    setPhase("connecting");
     try {
       const { Conversation } = await import("@11labs/client");
-      const res = await fetch(`/api/elevenlabs/session`, {
+      const res = await fetch("/api/elevenlabs/session", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ agentId: config.elevenLabsAgentId }),
       });
+      if (!res.ok) throw new Error("session failed");
       const { token } = await res.json();
-
-      const conv = await Conversation.startSession({
+      const conv = await (Conversation as { startSession: (opts: object) => Promise<unknown> }).startSession({
         signedUrl: token,
         onMessage: (msg: { message: string }) => {
-          if (msg.message.includes("[OPEN_FORM:")) {
-            onOpenForm();
-          }
+          if (msg.message?.includes("[OPEN_FORM]")) onOpenForm();
         },
-        onDisconnect: () => setChatState("ended"),
+        onDisconnect: () => setPhase("ended"),
+        onError: (e: unknown) => { console.error("11labs error", e); setPhase("idle"); },
       });
-      conversationRef.current = conv;
-      setChatState("active");
-    } catch {
-      setChatState("idle");
+      convRef.current = conv;
+      setPhase("active");
+    } catch (e) {
+      console.error("Chat start error:", e);
+      setPhase("idle");
     }
   }
 
   async function endChat() {
-    if (conversationRef.current) {
-      try {
-        const conv = conversationRef.current as { endSession: () => Promise<void> };
-        await conv.endSession();
-      } catch {}
-    }
-    // Send summary email
+    try { await (convRef.current as { endSession: () => Promise<void> })?.endSession(); } catch {}
     fetch(`/api/widget/${config.slug}/submit`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
+      method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "chat", contact, location }),
     }).catch(() => {});
-    setChatState("ended");
+    setPhase("ended");
   }
 
-  if (chatState === "ended") {
+  if (phase === "ended") {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center">
         <CheckCircle2 className="mb-3 size-12 text-green-500" />
         <p className="font-semibold text-gray-900">Gespräch beendet</p>
-        <p className="mt-1 text-sm text-gray-500">Vielen Dank. Wir werden Sie bei Bedarf kontaktieren.</p>
-        <button className={`${S.btnSm} mt-4`} onClick={() => setChatState("idle")}>
-          Neues Gespräch
-        </button>
+        <p className="mt-1 text-sm text-gray-500">Vielen Dank. Wir melden uns bei Bedarf bei Ihnen.</p>
+        <button className={`${BASE.btnSm} mt-4 px-5 py-2`} {...btn(accent)} onClick={() => setPhase("idle")}>Neues Gespräch</button>
       </div>
     );
   }
 
-  if (chatState === "active") {
+  if (phase === "active") {
     return (
-      <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
-        <div className="relative flex size-20 items-center justify-center rounded-full bg-red-50">
-          <div className="absolute inset-0 animate-ping rounded-full bg-red-100" />
-          <Mic className="relative size-8 text-red-600" />
+      <div className="flex flex-col items-center py-8 text-center space-y-4">
+        <div className="relative flex size-20 items-center justify-center rounded-full" style={{ background: accent + "18" }}>
+          <div className="absolute inset-0 animate-ping rounded-full" style={{ background: accent + "30" }} />
+          <Mic className="relative size-8" style={{ color: accent }} />
         </div>
         <p className="font-semibold text-gray-900">Gespräch läuft …</p>
-        <p className="text-xs text-gray-500">Sprechen Sie mit unserem Assistenten.</p>
         <div className="flex gap-2">
-          <button
-            className={S.btnSmOutline}
-            onClick={() => setIsMuted((m) => !m)}
-          >
-            {isMuted ? <MicOff className="inline size-4" /> : <Mic className="inline size-4" />}
-            {isMuted ? " Stummschaltung aufheben" : " Stummschalten"}
+          <button className={BASE.btnSmOut} onClick={() => setIsMuted((m) => !m)}>
+            {isMuted ? <MicOff className="inline size-4 mr-1" /> : <Mic className="inline size-4 mr-1" />}
+            {isMuted ? "Ton an" : "Stumm"}
           </button>
-          <button className={S.btnSm} onClick={endChat}>
-            Beenden
-          </button>
+          <button className={`${BASE.btnSm} px-4`} {...btn(accent)} onClick={endChat}>Beenden</button>
         </div>
       </div>
     );
   }
 
-  if (chatState === "connecting") {
-    return (
-      <div className="flex flex-col items-center justify-center py-10">
-        <Loader2 className="mb-3 size-8 animate-spin text-red-600" />
-        <p className="text-sm text-gray-600">Verbindung wird aufgebaut …</p>
-      </div>
-    );
+  if (phase === "connecting") {
+    return <div className="flex flex-col items-center justify-center py-10"><Loader2 className="mb-3 size-8 animate-spin" style={{ color: accent }} /><p className="text-sm text-gray-600">Verbindung wird aufgebaut …</p></div>;
   }
 
-  if (chatState === "contact") {
+  if (phase === "contact") {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         <p className="text-sm font-semibold text-gray-900">Ihre Kontaktdaten</p>
-        <p className="text-xs text-gray-500">Bevor wir das Gespräch starten, benötigen wir kurz Ihre Angaben.</p>
-        <div className="overflow-y-auto" style={{ maxHeight: 280 }}>
-          <ContactStep defaultCountryCode={config.defaultCountryCode} data={contact} onChange={setContact} />
+        <p className="text-xs text-gray-500">Bevor der Chat startet, benötigen wir kurz Ihre Angaben.</p>
+        <div className="overflow-y-auto" style={{ maxHeight: 300, scrollbarWidth: "none" }}>
+          <ContactStep config={config} data={contact} onChange={setContact} />
         </div>
         <div className="flex gap-2">
-          <button className={S.btnSmOutline} onClick={() => setChatState("idle")}>Zurück</button>
-          <button className={`${S.btnSm} flex-1`} disabled={!canStart()} onClick={startChat}>
-            Chat starten
-          </button>
+          <button className={BASE.btnSmOut} onClick={() => setPhase("idle")}>Zurück</button>
+          <button className={`${BASE.btnSm} flex-1`} {...btn(accent)} disabled={!canStart()} onClick={startChat}>Chat starten</button>
         </div>
       </div>
     );
   }
 
-  // idle
   if (!config.elevenLabsAgentId) {
-    return (
-      <div className="flex flex-col items-center justify-center py-10 text-center">
-        <MessageCircle className="mb-3 size-10 text-gray-300" />
-        <p className="text-sm text-gray-500">Chat ist noch nicht konfiguriert.</p>
-      </div>
-    );
+    return <div className="flex flex-col items-center justify-center py-10 text-center"><MessageCircle className="mb-3 size-10 text-gray-200" /><p className="text-sm text-gray-500">Chat ist noch nicht konfiguriert.</p></div>;
   }
 
   return (
-    <div className="flex flex-col items-center justify-center py-8 text-center space-y-3">
-      <div className="flex size-16 items-center justify-center rounded-full bg-red-50">
-        <MessageCircle className="size-8 text-red-600" />
+    <div className="flex flex-col items-center py-8 text-center space-y-3">
+      <div className="flex size-16 items-center justify-center rounded-full" style={{ background: accent + "18" }}>
+        <MessageCircle className="size-8" style={{ color: accent }} />
       </div>
-      <p className="font-semibold text-gray-900">Chat mit unserem Assistenten</p>
-      <p className="text-sm text-gray-500">Stellen Sie Ihre Fragen direkt per Sprache oder Text.</p>
-      <button className={S.btn} onClick={() => setChatState("contact")}>
-        Chat starten
-      </button>
+      <p className="font-semibold text-gray-900">Gespräch mit unserem Assistenten</p>
+      <p className="text-sm text-gray-500">Stellen Sie Ihre Fragen direkt per Sprache.</p>
+      <button className={`${BASE.btnSm} px-6 py-2.5 text-sm`} {...btn(accent)} onClick={() => setPhase("contact")}>Chat starten</button>
     </div>
   );
 }
 
-// ─── Startseite Tab ───────────────────────────────────────────────────────────
+// ─── Home Tab ─────────────────────────────────────────────────────────────────
 
-function StartseiteTab({
-  config,
-  location,
-  onOpenForm,
-  onOpenChat,
-}: {
-  config: WidgetConfig;
-  location: Location | null;
-  onOpenForm: () => void;
-  onOpenChat: () => void;
+function HomeTab({ config, location, onOpenForm, onOpenChat }: {
+  config: WidgetConfig; location: Location | null;
+  onOpenForm: () => void; onOpenChat: () => void;
 }) {
+  const accent = config.accentColor;
   return (
-    <div className="space-y-4 overflow-y-auto" style={{ maxHeight: 420 }}>
-      {/* Intro */}
+    <div className="space-y-5 overflow-y-auto" style={{ maxHeight: 450, scrollbarWidth: "none" }}>
       {(config.fachrichtung || config.introText) && (
         <div>
-          {config.fachrichtung && (
-            <p className="mb-1 text-xs font-medium text-red-600">{config.fachrichtung}</p>
-          )}
-          {config.introText && (
-            <p className="text-sm text-gray-700">{config.introText}</p>
-          )}
+          {config.fachrichtung && <p className="mb-1 text-xs font-semibold" style={{ color: accent }}>{config.fachrichtung}</p>}
+          {config.introText && <p className="text-sm text-gray-700 leading-relaxed">{config.introText}</p>}
         </div>
       )}
 
-      {/* Quick-CTAs */}
+      {/* CTAs */}
       <div className="grid grid-cols-2 gap-2">
-        <button
-          className="flex flex-col items-center gap-1.5 rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-          onClick={onOpenForm}
-        >
-          <Calendar className="size-5 text-red-600" />
-          Termin anfragen
+        <button onClick={onOpenForm}
+          className="flex flex-col items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3.5 text-center hover:bg-gray-100 transition-colors">
+          <Calendar className="size-5" style={{ color: accent }} />
+          <span className="text-xs font-medium text-gray-800">Termin anfragen</span>
         </button>
-        <button
-          className="flex flex-col items-center gap-1.5 rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-          onClick={onOpenChat}
-        >
-          <MessageCircle className="size-5 text-red-600" />
-          Mit uns chatten
+        <button onClick={onOpenChat}
+          className="flex flex-col items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3.5 text-center hover:bg-gray-100 transition-colors">
+          <MessageCircle className="size-5" style={{ color: accent }} />
+          <span className="text-xs font-medium text-gray-800">Direkt chatten</span>
         </button>
       </div>
 
       {/* Öffnungszeiten */}
-      {location && location.openingHours.some((h) => !h.isClosed) && (
+      {location && (location.openingHoursText || location.openingHours.some((h) => !h.isClosed)) && (
         <div>
           <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
-            <Clock className="size-3.5" />
-            Öffnungszeiten
-            {location.name !== "Hauptstandort" && (
-              <span className="text-gray-400">— {location.name}</span>
-            )}
+            <Clock className="size-3.5" /> Öffnungszeiten
+            {location.name !== "Hauptstandort" && <span className="text-gray-400">— {location.name}</span>}
           </div>
-          <OpeningHoursTable hours={location.openingHours} />
+          {location.openingHoursText ? (
+            <p className="text-xs text-gray-600 whitespace-pre-line">{location.openingHoursText}</p>
+          ) : (
+            <div className="space-y-0.5">
+              {location.openingHours.map((h) => (
+                <div key={h.dayOfWeek} className="flex text-xs">
+                  <span className="w-20 shrink-0 text-gray-500">
+                    {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][h.dayOfWeek]}
+                  </span>
+                  {h.isClosed ? <span className="text-gray-400">Geschlossen</span> : <span className="text-gray-700">{h.openTime} – {h.closeTime}</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -790,15 +680,13 @@ function StartseiteTab({
       {location && (location.phone || location.address) && (
         <div className="space-y-1.5">
           {location.phone && (
-            <a href={`tel:${location.phone}`} className="flex items-center gap-2 text-xs text-gray-600 hover:text-red-600">
-              <Phone className="size-3.5" />
-              {location.phone}
+            <a href={`tel:${location.phone}`} className="flex items-center gap-2 text-xs text-gray-600 hover:underline">
+              <span className="size-3.5">📞</span>{location.phone}
             </a>
           )}
           {location.address && (
             <div className="flex items-start gap-2 text-xs text-gray-600">
-              <MapPin className="mt-0.5 size-3.5 shrink-0" />
-              {location.address}
+              <MapPin className="mt-0.5 size-3.5 shrink-0" />{location.address}
             </div>
           )}
         </div>
@@ -807,108 +695,92 @@ function StartseiteTab({
       {/* News */}
       {config.news.length > 0 && (
         <div>
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
-            <Newspaper className="size-3.5" />
-            Aktuelles
-          </div>
-          <div className="space-y-2">
-            {config.news.map((n) => (
-              <div key={n.id} className="rounded-lg border border-gray-100 bg-gray-50 p-2.5">
-                <p className="text-xs font-semibold text-gray-900">{n.title}</p>
-                {n.body && <p className="mt-0.5 text-xs text-gray-600">{n.body}</p>}
-              </div>
-            ))}
-          </div>
+          <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700"><Newspaper className="size-3.5" />Aktuelles</div>
+          {config.news.map((n) => (
+            <div key={n.id} className="mb-2 rounded-xl border border-gray-100 bg-gray-50 p-3">
+              <p className="text-xs font-semibold text-gray-900">{n.title}</p>
+              {n.body && <p className="mt-0.5 text-xs text-gray-600">{n.body}</p>}
+            </div>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// ─── Panel (open) ─────────────────────────────────────────────────────────────
+// ─── Panel ────────────────────────────────────────────────────────────────────
 
-function WidgetPanel({
-  config,
-  location,
-  onClose,
-}: {
-  config: WidgetConfig;
-  location: Location | null;
-  onClose: () => void;
+function WidgetPanel({ config, location, onClose, initialTab, contact, setContact }: {
+  config: WidgetConfig; location: Location | null;
+  onClose: () => void; initialTab: PanelTab;
+  contact: ContactData; setContact: (d: ContactData) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<PanelTab>("startseite");
-  const tabs: { id: PanelTab; label: string; icon: React.ReactNode }[] = [
-    { id: "startseite", label: "Start", icon: <Clock className="size-3.5" /> },
-    { id: "formular",   label: "Formular", icon: <Calendar className="size-3.5" /> },
-    { id: "chat",       label: "Chat", icon: <MessageCircle className="size-3.5" /> },
+  const [activeTab, setActiveTab] = useState<PanelTab>(initialTab);
+  const accent = config.accentColor;
+
+  useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
+
+  const TABS: { id: PanelTab; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: "home",     label: "Home",    Icon: House },
+    { id: "formular", label: "Formular", Icon: FileText },
+    { id: "chat",     label: "Chat",    Icon: MessageCircle },
   ];
 
   return (
-    <div className={S.panel}>
+    <div className="flex w-[420px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl" style={{ maxHeight: 600 }}>
       {/* Header */}
-      <div className={S.panelHeader}>
-        {config.logoPath ? (
-          <img src={config.logoPath} alt={config.name} className="size-7 rounded-md object-contain" />
-        ) : (
-          <div className="flex size-7 items-center justify-center rounded-md bg-red-600 text-white text-xs font-bold shrink-0">
-            {config.name.charAt(0)}
-          </div>
-        )}
+      <div className="flex shrink-0 items-center gap-2.5 border-b border-gray-100 px-4 py-3">
+        <LogoMark config={config} size={8} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-gray-900">{config.widgetTitle}</p>
-          {config.widgetSubtitle && (
-            <p className="truncate text-xs text-gray-500">{config.widgetSubtitle}</p>
-          )}
+          {config.widgetSubtitle && <p className="truncate text-xs text-gray-500">{config.widgetSubtitle}</p>}
         </div>
         <button onClick={onClose} className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
           <X className="size-4" />
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className={S.tabBar}>
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className={`${S.tab} ${activeTab === t.id ? S.tabActive : S.tabInactive} flex items-center justify-center gap-1`}
-          >
-            {t.icon}
-            {t.label}
+      {/* Tab bar */}
+      <div className="flex shrink-0 border-b border-gray-100">
+        {TABS.map(({ id, label, Icon }) => (
+          <button key={id} onClick={() => setActiveTab(id)}
+            className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+              activeTab === id ? "border-b-2 text-gray-900" : "text-gray-400 hover:text-gray-700"
+            }`}
+            style={activeTab === id ? { borderBottomColor: accent, color: accent } : {}}>
+            <Icon className="size-3.5" />{label}
           </button>
         ))}
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden p-4">
-        {activeTab === "startseite" && (
-          <StartseiteTab
-            config={config}
-            location={location}
+      <div className="flex-1 overflow-hidden px-4 py-4">
+        {activeTab === "home" && (
+          <HomeTab config={config} location={location}
             onOpenForm={() => setActiveTab("formular")}
-            onOpenChat={() => setActiveTab("chat")}
-          />
+            onOpenChat={() => setActiveTab("chat")} />
         )}
         {activeTab === "formular" && (
-          <FormTab config={config} location={location} />
+          <FormTab config={config} location={location} contact={contact} setContact={setContact} />
         )}
         {activeTab === "chat" && (
-          <ChatTab
-            config={config}
-            location={location}
-            onOpenForm={() => setActiveTab("formular")}
-          />
+          <ChatTab config={config} location={location} contact={contact} setContact={setContact}
+            onOpenForm={() => setActiveTab("formular")} />
         )}
       </div>
 
       {/* Footer */}
-      <div className="border-t border-gray-100 px-4 py-2 text-center">
-        <p className="text-[10px] text-gray-400">
-          Ein Produkt von{" "}
-          <a href="https://medflex-schweiz.ch" target="_blank" rel="noopener noreferrer" className="underline">
-            MedFlex
-          </a>
-        </p>
+      <div className="shrink-0 border-t border-gray-100 px-4 py-2.5">
+        <div className="grid grid-cols-3 items-center text-[10px] text-gray-400">
+          <a href="https://medflex-schweiz.ch/datenschutz" target="_blank" rel="noopener noreferrer"
+            className="hover:text-gray-600 hover:underline">Datenschutz</a>
+          <div className="flex items-center justify-center gap-1">
+            <img src="/favicon.png" alt="MedFlex" className="size-3.5 opacity-60" />
+            <span>MedFlex</span>
+          </div>
+          <a href="https://app.medflex.de/arzt" target="_blank" rel="noopener noreferrer"
+            className="text-right hover:text-gray-600 hover:underline">Login</a>
+        </div>
       </div>
     </div>
   );
@@ -916,121 +788,141 @@ function WidgetPanel({
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
+type WidgetView = "teaser" | "panel" | "collapsed";
+
 export function WidgetApp({ config }: { config: WidgetConfig }) {
   const [view, setView] = useState<WidgetView>("teaser");
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [privacyState, setPrivacyState] = useState<"pending" | "accepted" | "declined">("pending");
   const [locationSelected, setLocationSelected] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(
     config.locations.find((l) => l.isDefault) ?? config.locations[0] ?? null
   );
+  const [initialTab, setInitialTab] = useState<PanelTab>("home");
+  const [contact, setContact] = useState<ContactData>(EMPTY_CONTACT(config.defaultCountryCode));
 
+  const accent = config.accentColor;
   const needsLocationSelect = config.locations.length > 1 && !locationSelected;
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem(`reception_privacy_${config.slug}`);
-      if (stored === "1") setPrivacyAccepted(true);
+      if (stored === "1") setPrivacyState("accepted");
     } catch {}
   }, [config.slug]);
 
-  function acceptPrivacy() {
-    try { localStorage.setItem(`reception_privacy_${config.slug}`, "1"); } catch {}
-    setPrivacyAccepted(true);
-  }
-
-  function selectLocation(loc: Location) {
-    setSelectedLocation(loc);
-    setLocationSelected(true);
-  }
-
-  function handleQA(target: string) {
+  function openPanel(tab: PanelTab = "home") {
+    if (privacyState !== "accepted") {
+      // show privacy first — will open panel after accept
+      setInitialTab(tab);
+      setView("panel"); // open panel shell, privacy overlay will cover
+      return;
+    }
+    setInitialTab(tab);
     setView("panel");
   }
 
-  const qas = [
-    { label: config.qa1Label, target: config.qa1Target, icon: <Calendar className="size-3.5" /> },
-    { label: config.qa2Label, target: config.qa2Target, icon: <MessageCircle className="size-3.5" /> },
-    { label: config.qa3Label, target: config.qa3Target, icon: <MoreHorizontal className="size-3.5" /> },
-  ];
-
-  // ── Overlays first ──
-
-  if (!privacyAccepted) {
-    return <PrivacyOverlay config={config} onAccept={acceptPrivacy} />;
+  function acceptPrivacy() {
+    try { localStorage.setItem(`reception_privacy_${config.slug}`, "1"); } catch {}
+    setPrivacyState("accepted");
   }
 
-  if (needsLocationSelect) {
-    return <LocationSelector locations={config.locations} onSelect={selectLocation} />;
+  function declinePrivacy() {
+    setPrivacyState("declined");
   }
 
-  // ── Widget ──
+  // Quick-action target handler
+  function handleQA(target: string) {
+    if (target === "CHAT") openPanel("chat");
+    else openPanel("formular");
+  }
 
-  return (
-    <div className="fixed bottom-5 right-5 flex flex-col items-end gap-2" style={{ pointerEvents: "auto" }}>
-      {view === "collapsed" ? (
+  // ── Collapsed ──
+  if (view === "collapsed") {
+    return (
+      <div className="fixed bottom-5 right-5" style={{ pointerEvents: "auto" }}>
         <button
-          className={S.circle}
+          className="flex size-14 items-center justify-center rounded-full border border-gray-200 bg-white shadow-lg hover:shadow-xl transition-shadow"
           onClick={() => setView("teaser")}
           aria-label="Rezeption öffnen"
         >
-          {config.logoPath ? (
-            <img src={config.logoPath} alt={config.name} className="size-8 rounded-full object-contain" />
-          ) : (
-            <span className="text-lg font-bold text-red-600">{config.name.charAt(0)}</span>
-          )}
+          <LogoMark config={config} size={8} />
         </button>
-      ) : view === "panel" ? (
-        <WidgetPanel
-          config={config}
-          location={selectedLocation}
-          onClose={() => setView("collapsed")}
-        />
-      ) : (
-        /* teaser */
-        <>
-          {/* Quick-action buttons */}
-          <div className={S.strip}>
-            {qas.map((qa, i) => (
-              <button key={i} className={S.qaBtn} onClick={() => handleQA(qa.target)}>
-                {qa.icon}
-                {qa.label}
-              </button>
-            ))}
-          </div>
+      </div>
+    );
+  }
 
-          {/* Main rectangle */}
-          <div className="relative w-80">
-            <button
-              className={`${S.rect} w-full`}
-              onClick={() => setView("panel")}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                {config.logoPath ? (
-                  <img src={config.logoPath} alt={config.name} className="size-9 shrink-0 rounded-xl object-contain" />
-                ) : (
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white text-sm font-bold">
-                    {config.name.charAt(0)}
-                  </div>
-                )}
-                <div className="min-w-0 text-left">
-                  <p className="truncate text-sm font-semibold text-gray-900">{config.widgetTitle}</p>
-                  {config.widgetSubtitle && (
-                    <p className="truncate text-xs text-gray-500">{config.widgetSubtitle}</p>
-                  )}
-                </div>
-              </div>
-              <ChevronRight className="ml-2 size-4 shrink-0 text-gray-400" />
-            </button>
-            <button
-              onClick={() => setView("collapsed")}
-              className="absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 hover:text-gray-700 shadow-sm"
-              aria-label="Minimieren"
-            >
-              <X className="size-3" />
-            </button>
+  // ── Panel ──
+  if (view === "panel") {
+    const showPrivacy = privacyState === "pending";
+    const showDeclined = privacyState === "declined";
+    const showLocation = privacyState === "accepted" && needsLocationSelect;
+
+    return (
+      <div className="fixed bottom-5 right-5" style={{ pointerEvents: "auto" }}>
+        <div className="relative">
+          <WidgetPanel
+            config={config}
+            location={selectedLocation}
+            onClose={() => setView("collapsed")}
+            initialTab={initialTab}
+            contact={contact}
+            setContact={setContact}
+          />
+          {showPrivacy && (
+            <PrivacyOverlay config={config} onAccept={acceptPrivacy} onDecline={declinePrivacy} />
+          )}
+          {showDeclined && (
+            <PrivacyDeclinedScreen onAccept={() => { setPrivacyState("pending"); }} />
+          )}
+          {showLocation && (
+            <LocationSelector locations={config.locations} onSelect={(loc) => { setSelectedLocation(loc); setLocationSelected(true); }} />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Teaser ──
+  return (
+    <div className="fixed bottom-5 right-5 flex flex-col items-end gap-2" style={{ pointerEvents: "auto" }}>
+      {/* Quick-action buttons — icon only */}
+      <div className="flex gap-1.5">
+        {[
+          { Icon: Calendar, target: config.qa1Target },
+          { Icon: MessageCircle, target: config.qa2Target },
+          { Icon: MoreHorizontal, target: config.qa3Target },
+        ].map(({ Icon, target }, i) => (
+          <button key={i} onClick={() => { setView("panel"); handleQA(target); }}
+            className="flex size-9 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm hover:bg-gray-50 transition-colors"
+            aria-label={target}>
+            <Icon className="size-4 text-gray-600" />
+          </button>
+        ))}
+      </div>
+
+      {/* Main rectangle */}
+      <div className="relative w-[420px]">
+        <button
+          className="flex w-full cursor-pointer items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3.5 shadow-md hover:shadow-lg transition-shadow"
+          onClick={() => openPanel("home")}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <LogoMark config={config} size={10} />
+            <div className="min-w-0 text-left">
+              <p className="truncate text-sm font-semibold text-gray-900">{config.widgetTitle}</p>
+              {config.widgetSubtitle && <p className="truncate text-xs text-gray-500">{config.widgetSubtitle}</p>}
+            </div>
           </div>
-        </>
-      )}
+          <ChevronRight className="ml-2 size-4 shrink-0 text-gray-400" />
+        </button>
+        <button
+          onClick={() => setView("collapsed")}
+          className="absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 hover:text-gray-700 shadow-sm"
+          aria-label="Minimieren"
+        >
+          <X className="size-3" />
+        </button>
+      </div>
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { TabStartseite } from "./tab-startseite";
 import { TabFormular } from "./tab-formular";
 import { TabChat } from "./tab-chat";
 import { TabVorschau } from "./tab-vorschau";
-import type { FormStep } from "@/lib/reception-form-templates";
+import type { FormType } from "@/lib/reception-form-templates";
 
 export interface ClientData {
   id: string;
@@ -16,6 +16,7 @@ export interface ClientData {
   logoPath: string;
   widgetTitle: string;
   widgetSubtitle: string;
+  accentColor: string;
   defaultCountryCode: string;
   elevenLabsAgentId: string;
   privacyPolicyText: string;
@@ -25,9 +26,10 @@ export interface ClientData {
   qa3Label: string; qa3Target: string;
   fachrichtung: string;
   introText: string;
-  formSteps: FormStep[];
+  formSteps: FormType[];
   locations: {
-    id: string; name: string; address: string; phone: string; isDefault: boolean; order: number;
+    id: string; name: string; address: string; phone: string;
+    openingHoursText: string; isDefault: boolean; order: number;
     openingHours: {
       id: string; dayOfWeek: number; openTime: string; closeTime: string; isClosed: boolean; note: string;
     }[];
