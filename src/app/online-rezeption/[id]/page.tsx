@@ -3,6 +3,17 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ClientConfig } from "./client-config";
+import type { FormType } from "@/lib/reception-form-templates";
+
+function parseFormSteps(raw: unknown): FormType[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  // New format: each item has { id, title, steps[] }
+  if (typeof raw[0] === "object" && raw[0] !== null && "steps" in raw[0]) {
+    return raw as FormType[];
+  }
+  // Old format: flat FormStep[] — wrap in a single FormType
+  return [{ id: "legacy", title: "Formular", icon: "file", steps: raw as FormType["steps"] }];
+}
 
 export default async function ClientConfigPage({
   params,
@@ -46,7 +57,7 @@ export default async function ClientConfigPage({
       <ClientConfig client={{
         ...client,
         accentColor: client.accentColor,
-        formSteps: (client.formSteps as any) ?? [],
+        formSteps: parseFormSteps(client.formSteps),
         locations: client.locations.map((l) => ({
           ...l,
           openingHoursText: l.openingHoursText ?? "",

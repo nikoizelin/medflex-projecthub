@@ -1,7 +1,6 @@
-import Link from "next/link";
-import { Plus, MonitorSmartphone } from "lucide-react";
+import { MonitorSmartphone } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { ReceptionClientList } from "./reception-client-list";
+import { ReceptionClientList, ClientCard } from "./reception-client-list";
 
 export default async function OnlineRezeptionPage() {
   const clients = await prisma.receptionClient.findMany({
@@ -36,30 +35,7 @@ export default async function OnlineRezeptionPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {clients.map((c) => (
-            <Link
-              key={c.id}
-              href={`/online-rezeption/${c.id}`}
-              className="group rounded-lg border bg-background p-4 transition-colors hover:border-foreground/20"
-            >
-              <div className="mb-3 flex items-center gap-3">
-                {c.logoPath ? (
-                  <img src={c.logoPath} alt={c.name} className="size-10 rounded-md object-contain" />
-                ) : (
-                  <div className="flex size-10 items-center justify-center rounded-md bg-muted">
-                    <MonitorSmartphone className="size-5 text-muted-foreground" />
-                  </div>
-                )}
-                <div>
-                  <p className="font-medium leading-tight">{c.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {c._count.locations} {c._count.locations === 1 ? "Standort" : "Standorte"}
-                  </p>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Widget-ID: <span className="font-mono">{c.slug}</span>
-              </p>
-            </Link>
+            <ClientCard key={c.id} client={c} />
           ))}
         </div>
       )}

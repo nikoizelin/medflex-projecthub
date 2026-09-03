@@ -9,11 +9,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { updateClientGeneral, uploadClientLogo, deleteClientLogo } from "./actions";
 import type { ClientData } from "./client-config";
 
-const ACCENT_PRESETS = [
-  "#E30613", "#BF375F", "#BC358C", "#7A368D",
-  "#283585", "#4B7E9C", "#009740", "#F07D00",
-];
-
 export function TabAllgemein({ client }: { client: ClientData }) {
   const [form, setForm] = useState({
     widgetTitle:        client.widgetTitle || client.name,
@@ -84,9 +79,6 @@ export function TabAllgemein({ client }: { client: ClientData }) {
               {logoUrl ? "Logo ändern" : "Logo hochladen"}
             </Button>
             <p className="mt-1 text-xs text-muted-foreground">PNG, JPG, SVG — max. 2 MB</p>
-            <p className="mt-0.5 text-xs text-amber-600">
-              ⚠ Supabase-Bucket muss auf «Public» gestellt sein (Storage → Policies)
-            </p>
           </div>
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
         </div>
@@ -111,58 +103,20 @@ export function TabAllgemein({ client }: { client: ClientData }) {
       <section>
         <h2 className="mb-1 text-sm font-semibold">Akzentfarbe</h2>
         <p className="mb-3 text-xs text-muted-foreground">Primärfarbe für Buttons, Icons und Highlights im Widget.</p>
-        <div className="flex items-center gap-3">
-          <div className="flex gap-2">
-            {ACCENT_PRESETS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => set("accentColor", c)}
-                className="size-7 rounded-full border-2 transition-transform hover:scale-110"
-                style={{
-                  background: c,
-                  borderColor: form.accentColor === c ? "#000" : "transparent",
-                }}
-              />
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={form.accentColor}
-              onChange={(e) => set("accentColor", e.target.value)}
-              className="size-7 cursor-pointer rounded border"
-            />
-            <Input
-              value={form.accentColor}
-              onChange={(e) => set("accentColor", e.target.value)}
-              className="w-28 font-mono text-sm"
-              placeholder="#E30613"
-            />
-          </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={form.accentColor}
+            onChange={(e) => set("accentColor", e.target.value)}
+            className="size-8 cursor-pointer rounded border"
+          />
+          <Input
+            value={form.accentColor}
+            onChange={(e) => set("accentColor", e.target.value)}
+            className="w-28 font-mono text-sm"
+            placeholder="#E30613"
+          />
         </div>
-        <div className="mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-          <div className="size-4 rounded-full" style={{ background: form.accentColor }} />
-          <span>Vorschau: </span>
-          <button
-            className="rounded-md px-2.5 py-1 text-xs text-white"
-            style={{ background: form.accentColor }}
-          >
-            Termin anfragen
-          </button>
-        </div>
-      </section>
-
-      {/* Standard-Ländercode */}
-      <section>
-        <h2 className="mb-1 text-sm font-semibold">Standard-Ländercode</h2>
-        <p className="mb-2 text-xs text-muted-foreground">Vorauswahl im Mobilnummer-Feld (Standard: +41).</p>
-        <Input
-          value={form.defaultCountryCode}
-          onChange={(e) => set("defaultCountryCode", e.target.value)}
-          className="w-28"
-          placeholder="+41"
-        />
       </section>
 
       {/* Datenschutz */}
