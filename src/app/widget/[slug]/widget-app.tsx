@@ -86,14 +86,11 @@ const COUNTRIES = [
 function btn(accent: string) {
   return { style: { background: accent, color: "#fff" } };
 }
-function ring(accent: string) {
-  return { style: { outline: `2px solid ${accent}`, outlineOffset: "2px" } };
-}
 
 const BASE = {
-  input: "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-transparent focus:ring-2 focus:ring-gray-300",
+  input: "w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-transparent focus:ring-2 focus:ring-gray-300",
   label: "block text-xs font-medium text-gray-700 mb-1",
-  btnSm: "rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90",
+  btnSm: "rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed",
   btnSmOut: "rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors",
 };
 
@@ -258,7 +255,14 @@ function ContactStep({ config, data, onChange }: {
         )}
       </div>
 
-      <div><label className={BASE.label}>Geburtsdatum</label><input type="date" className={BASE.input} value={data.birthdate} onChange={(e) => set("birthdate", e.target.value)} /></div>
+      {field("birthdate", "Geburtsdatum *",
+        <input type="date"
+          className={`${touched.birthdate && !data.birthdate ? INPUT_ERR : BASE.input} cursor-pointer [color-scheme:light]`}
+          value={data.birthdate}
+          onChange={(e) => set("birthdate", e.target.value)}
+          onBlur={() => touch("birthdate")} />,
+        !data.birthdate ? "Pflichtfeld" : undefined
+      )}
 
       {field("phone", "Mobilnummer *",
         <div className="flex gap-1.5">
@@ -405,8 +409,8 @@ function MatrixField({ field, value, onChange, accent }: {
 
 // ─── Field Renderer ───────────────────────────────────────────────────────────
 
-function FieldRenderer({ field, value, onChange, accent }: {
-  field: FormField; value: string; onChange: (v: string) => void; accent: string;
+function FieldRenderer({ field, value, onChange, accent, showError }: {
+  field: FormField; value: string; onChange: (v: string) => void; accent: string; showError?: boolean;
 }) {
   const [sonstigesText, setSonstigesText] = useState("");
 
@@ -450,22 +454,35 @@ function FieldRenderer({ field, value, onChange, accent }: {
       </div>
     );
   }
+  const errCls = showError && field.required && !value ? "border-red-400 focus:ring-red-200" : "";
+
   if (field.type === "select") {
     return (
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={BASE.input}>
+      <select value={value} onChange={(e) => onChange(e.target.value)}
+        className={`${BASE.input} ${errCls}`}>
         <option value="">Bitte wählen …</option>
         {(field.options ?? []).map((opt) => <option key={opt} value={opt}>{opt}</option>)}
       </select>
     );
   }
   if (field.type === "textarea") {
-    return <textarea value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={BASE.input} rows={3} />;
+    return <textarea value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={`${BASE.input} ${errCls}`} rows={3} />;
+  }
+  if (field.type === "date") {
+    return (
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${BASE.input} cursor-pointer [color-scheme:light] ${errCls}`}
+      />
+    );
   }
   return (
     <input
-      type={field.type === "date" ? "date" : field.type === "time" ? "time" : field.type === "number" ? "number" : "text"}
+      type={field.type === "time" ? "time" : field.type === "number" ? "number" : "text"}
       value={value} placeholder={field.placeholder}
-      onChange={(e) => onChange(e.target.value)} className={BASE.input}
+      onChange={(e) => onChange(e.target.value)} className={`${BASE.input} ${errCls}`}
     />
   );
 }
@@ -492,7 +509,7 @@ function FormTab({ config, location, contact, setContact }: {
     return step.fields.filter((f) => f.required).every((f) => !!answers[f.id]);
   }
   function canSubmit(): boolean {
-    return !!(contact.firstName && contact.lastName && contact.email && contact.phone && contact.privacyConsent);
+    return !!(contact.firstName && contact.lastName && contact.birthdate && contact.email && contact.phone && contact.privacyConsent);
   }
 
   async function submit() {
@@ -552,34 +569,41 @@ function FormTab({ config, location, contact, setContact }: {
 
   if (phase === "contact") {
     return (
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3" style={{ maxHeight: 490 }}>
+        <div className="flex items-center gap-2 shrink-0">
           <button onClick={() => setPhase("steps")} className="text-gray-400 hover:text-gray-700"><ChevronLeft className="size-4" /></button>
           <p className="text-sm font-semibold text-gray-900">Kontaktdaten</p>
         </div>
-        <div className="overflow-y-auto" style={{ maxHeight: 330, scrollbarWidth: "none" }}>
+
+        {/* Scrollable area: contact form + file list */}
+        <div className="flex-1 overflow-y-auto space-y-3 min-h-0" style={{ scrollbarWidth: "none" }}>
           <ContactStep config={config} data={contact} onChange={setContact} />
+
+          {/* File upload */}
+          <div>
+            <button type="button" onClick={() => fileRef.current?.click()}
+              className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800">
+              <Paperclip className="size-3.5" />
+              Dateien/Fotos hinzufügen{files.length > 0 ? ` (${files.length})` : ""}
+            </button>
+            <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden"
+              onChange={(e) => setFiles((f) => [...f, ...Array.from(e.target.files ?? [])])} />
+            {files.map((f, i) => (
+              <div key={i} className="mt-1 flex items-center justify-between text-xs text-gray-600">
+                <span className="truncate max-w-[240px]">{f.name}</span>
+                <button onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))} className="ml-2 shrink-0 text-gray-400 hover:text-red-500"><X className="size-3.5" /></button>
+              </div>
+            ))}
+          </div>
         </div>
-        {/* File upload */}
-        <div>
-          <button type="button" onClick={() => fileRef.current?.click()}
-            className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800">
-            <Paperclip className="size-3.5" />
-            Dateien/Fotos hinzufügen{files.length > 0 ? ` (${files.length})` : ""}
+
+        {/* Always-visible submit */}
+        <div className="shrink-0 pt-1 space-y-1">
+          <button className={`${BASE.btnSm} w-full py-2.5`} {...btn(accent)} disabled={!canSubmit()} onClick={submit}>
+            Absenden
           </button>
-          <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden"
-            onChange={(e) => setFiles((f) => [...f, ...Array.from(e.target.files ?? [])])} />
-          {files.map((f, i) => (
-            <div key={i} className="mt-1 flex items-center justify-between text-xs text-gray-600">
-              <span className="truncate">{f.name}</span>
-              <button onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))} className="ml-2 text-gray-400 hover:text-red-500"><X className="size-3.5" /></button>
-            </div>
-          ))}
+          {!canSubmit() && <p className="text-center text-xs text-gray-400">Alle Pflichtfelder ausfüllen und Datenschutz akzeptieren</p>}
         </div>
-        <button className={`${BASE.btnSm} w-full py-2.5`} {...btn(accent)} disabled={!canSubmit()} onClick={submit}>
-          Absenden
-        </button>
-        {!canSubmit() && <p className="text-center text-xs text-gray-400">Alle Pflichtfelder ausfüllen und Datenschutz akzeptieren</p>}
       </div>
     );
   }
@@ -588,6 +612,14 @@ function FormTab({ config, location, contact, setContact }: {
   const step = selectedType.steps[stepIndex];
   if (!step) { setPhase("contact"); return null; }
   const total = selectedType.steps.length + 1;
+  const [showStepErrors, setShowStepErrors] = useState(false);
+
+  function tryAdvance() {
+    if (!canProceed()) { setShowStepErrors(true); return; }
+    setShowStepErrors(false);
+    if (stepIndex < selectedType!.steps.length - 1) setStepIndex((i) => i + 1);
+    else setPhase("contact");
+  }
 
   return (
     <div className="space-y-4">
@@ -604,20 +636,23 @@ function FormTab({ config, location, contact, setContact }: {
       {step.subtitle && <p className="text-xs text-gray-500">{step.subtitle}</p>}
 
       <div className="overflow-y-auto space-y-4" style={{ maxHeight: 260, scrollbarWidth: "none" }}>
-        {step.fields.map((f) => (
-          <div key={f.id}>
-            <label className={`${BASE.label}${f.required ? " after:ml-0.5 after:text-red-500 after:content-['*']" : ""}`}>{f.label}</label>
-            <FieldRenderer field={f} value={answers[f.id] ?? ""} onChange={(v) => setAnswers((a) => ({ ...a, [f.id]: v }))} accent={config.accentColor} />
-          </div>
-        ))}
+        {step.fields.map((f) => {
+          const hasErr = showStepErrors && f.required && !answers[f.id];
+          return (
+            <div key={f.id}>
+              <label className={`block text-xs font-medium mb-1 ${hasErr ? "text-red-600" : "text-gray-700"}${f.required ? " after:ml-0.5 after:text-red-400 after:content-['*']" : ""}`}>{f.label}</label>
+              <FieldRenderer field={f} value={answers[f.id] ?? ""} onChange={(v) => { setAnswers((a) => ({ ...a, [f.id]: v })); if (showStepErrors) setShowStepErrors(false); }} accent={config.accentColor} showError={showStepErrors} />
+              {hasErr && <p className="mt-0.5 text-xs text-red-500">Pflichtfeld</p>}
+            </div>
+          );
+        })}
       </div>
 
       <div className="flex gap-2">
-        <button className={BASE.btnSmOut} onClick={() => stepIndex > 0 ? setStepIndex((i) => i - 1) : (setPhase("picker"), setSelectedType(null))}>
+        <button className={BASE.btnSmOut} onClick={() => { setShowStepErrors(false); stepIndex > 0 ? setStepIndex((i) => i - 1) : (setPhase("picker"), setSelectedType(null)); }}>
           <ChevronLeft className="inline size-3.5" /> Zurück
         </button>
-        <button className={`${BASE.btnSm} flex-1`} {...btn(config.accentColor)} disabled={!canProceed()}
-          onClick={() => stepIndex < selectedType.steps.length - 1 ? setStepIndex((i) => i + 1) : setPhase("contact")}>
+        <button className={`${BASE.btnSm} flex-1`} {...btn(config.accentColor)} onClick={tryAdvance}>
           {stepIndex < selectedType.steps.length - 1 ? <span>Weiter <ChevronRight className="inline size-3.5" /></span> : "Kontaktdaten"}
         </button>
       </div>
