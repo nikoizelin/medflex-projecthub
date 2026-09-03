@@ -530,6 +530,7 @@ function FormTab({ config, location, contact, setContact }: {
   const [stepIndex, setStepIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [files, setFiles] = useState<File[]>([]);
+  const [showStepErrors, setShowStepErrors] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const accent = config.accentColor;
 
@@ -642,7 +643,6 @@ function FormTab({ config, location, contact, setContact }: {
   const step = selectedType.steps[stepIndex];
   if (!step) { setPhase("contact"); return null; }
   const total = selectedType.steps.length + 1;
-  const [showStepErrors, setShowStepErrors] = useState(false);
 
   function tryAdvance() {
     if (!canProceed()) { setShowStepErrors(true); return; }
@@ -692,7 +692,7 @@ function FormTab({ config, location, contact, setContact }: {
 
 // ─── Chat Tab ─────────────────────────────────────────────────────────────────
 
-type ChatPhase = "idle" | "contact" | "connecting" | "active";
+type ChatPhase = "contact" | "connecting" | "active";
 type ChatMessage = { role: "user" | "agent" | "system"; text: string };
 
 function ChatTab({ config, location, contact, setContact, onOpenForm }: {
@@ -700,7 +700,7 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
   contact: ContactData; setContact: (d: ContactData) => void;
   onOpenForm: () => void;
 }) {
-  const [phase, setPhase] = useState<ChatPhase>("idle");
+  const [phase, setPhase] = useState<ChatPhase>("contact");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatEnded, setChatEnded] = useState(false);
   const [input, setInput] = useState("");
@@ -750,13 +750,13 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
       try { body = rawText ? JSON.parse(rawText) : {}; } catch { body = { error: rawText }; }
       if (!res.ok) {
         setDebugError(`Session API ${res.status}: ${body?.error ?? rawText}`);
-        setPhase("idle");
+        setPhase("contact");
         return;
       }
       const signedUrl = body.token as string;
       if (!signedUrl) {
         setDebugError("Kein signedUrl in API-Antwort erhalten");
-        setPhase("idle");
+        setPhase("contact");
         return;
       }
 
@@ -836,21 +836,48 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
 
       ws.onerror = () => {
         setDebugError("WebSocket-Verbindungsfehler");
-        setPhase("idle");
+        setPhase("contact");
       };
 
       ws.onclose = () => {
         setAgentTyping(false);
         setMessages((m) => [...m, { role: "system", text: "Chat wurde beendet." }]);
         setChatEnded(true);
+
+        const msgs = messagesRef.current;
+        const transcript = msgs
+          .filter((m) => m.role !== "system")
+          .map((m) => `${m.role === "user" ? "Patient" : "Assistent"}: ${m.text}`)
+          .join("\n");
+
+        const c = contact;
+        const plainText = [
+          "=== CHAT-PROTOKOLL ===",
+          `Datum: ${new Date().toLocaleString("de-CH")}`,
+          `Standort: ${location?.name ?? "–"}`,
+          "",
+          "--- Kontaktdaten ---",
+          `Name: ${c.firstName} ${c.lastName}`,
+          c.birthdate ? `Geburtsdatum: ${c.birthdate}` : null,
+          `E-Mail: ${c.email}`,
+          `Telefon: ${c.countryCode} ${c.phone}`,
+          c.forSelf === "proxy" && c.proxyName
+            ? `Vertretung für: ${c.proxyName}${c.proxyBirthdate ? ` (*${c.proxyBirthdate})` : ""}`
+            : null,
+          "",
+          "--- Gesprächsverlauf ---",
+          transcript || "(kein Verlauf)",
+        ].filter((l) => l !== null).join("\n");
+
         fetch(`/api/widget/${config.slug}/submit`, {
-          method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ type: "chat", contact, location, messages: messagesRef.current }),
+          method: "POST",
+          headers: { "content-type": "text/plain; charset=utf-8" },
+          body: plainText,
         }).catch(() => {});
       };
     } catch (e) {
       setDebugError(e instanceof Error ? e.message : String(e));
-      setPhase("idle");
+      setPhase("contact");
     }
   }
 
@@ -873,7 +900,7 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
     setMessages([]);
     setChatEnded(false);
     setInput("");
-    setPhase("idle");
+    setPhase("contact");
   }
 
   // ── Screens ──────────────────────────────────────────────────────────────────
@@ -905,7 +932,7 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
           <ContactStep config={config} data={contact} onChange={setContact} />
         </div>
         <div className="flex gap-2">
-          <button className={BASE.btnSmOut} onClick={() => setPhase("idle")}>Zurück</button>
+          <button className={BASE.btnSmOut} onClick={() => setPhase("contact")}>Zurück</button>
           <button className={`${BASE.btnSm} flex-1`} {...btn(accent)} disabled={!canStart()} onClick={startChat}>Chat starten</button>
         </div>
       </div>
@@ -995,23 +1022,7 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
     );
   }
 
-  // idle
-  return (
-    <div className="flex flex-col items-center py-8 text-center space-y-3">
-      <div className="flex size-16 items-center justify-center rounded-full" style={{ background: accent + "18" }}>
-        <MessageCircle className="size-8" style={{ color: accent }} />
-      </div>
-      <p className="font-semibold text-gray-900">Chat mit unserem Assistenten</p>
-      <p className="text-sm text-gray-500">Stellen Sie Ihre Fragen direkt per Text.</p>
-      {debugError && (
-        <div className="max-w-xs rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-left">
-          <p className="text-xs font-semibold text-red-700 mb-1">Verbindungsfehler</p>
-          <p className="text-xs text-red-600 break-words">{debugError}</p>
-        </div>
-      )}
-      <button className={`${BASE.btnSm} px-6 py-2.5 text-sm`} {...btn(accent)} onClick={() => setPhase("contact")}>Chat starten</button>
-    </div>
-  );
+  return null;
 }
 
 // ─── Home Tab ─────────────────────────────────────────────────────────────────
