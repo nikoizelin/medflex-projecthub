@@ -1087,8 +1087,7 @@ function ChatTab({ config, location, contact, setContact, onOpenForm }: {
           <ContactStep config={config} data={contact} onChange={setContact} />
         </div>
         <div className="flex gap-2">
-          <button className={BASE.btnSmOut} onClick={() => setPhase("contact")}>Zurück</button>
-          <button className={`${BASE.btnSm} flex-1`} {...btn(accent)} disabled={!canStart()} onClick={startChat}>Chat starten</button>
+          <button className={`${BASE.btnSm} w-full`} {...btn(accent)} disabled={!canStart()} onClick={startChat}>Chat starten</button>
         </div>
       </div>
     );
