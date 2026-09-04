@@ -1362,14 +1362,8 @@ export function WidgetApp({ config }: { config: WidgetConfig }) {
   const accent = config.accentColor;
   const needsLocationSelect = config.locations.length > 1 && !locationSelected;
 
-  // Make the widget page transparent and always light so only the floating UI is visible in iframes
-  useEffect(() => {
-    const html = document.documentElement;
-    html.style.background = "transparent";
-    html.style.colorScheme = "light";
-    html.classList.remove("dark");
-    document.body.style.background = "transparent";
-  }, []);
+  // Remove dark class — layout CSS handles transparency and color-scheme
+  useEffect(() => { document.documentElement.classList.remove("dark"); }, []);
 
   // Notify parent page to enable pointer-events when panel is open
   useEffect(() => {

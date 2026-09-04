@@ -1,7 +1,13 @@
 export default function WidgetLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="light" style={{ colorScheme: "light" }}>
+    <>
+      <style>{`
+        html, body {
+          background: transparent !important;
+          color-scheme: light !important;
+        }
+      `}</style>
       {children}
-    </div>
+    </>
   );
 }
