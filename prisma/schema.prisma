@@ -1,6 +1,3 @@
-// Medflex ProjektHub – Datenmodell
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -10,6 +7,323 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+}
+
+/// Spiegelt einen Supabase-Auth-User (auth.users.id) für App-spezifische Profildaten.
+model User {
+  id                     String           @id
+  email                  String           @unique
+  name                   String
+  role                   String           @default("Manager")
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  notifications          Notification[]
+  projects               Project[]
+  comments               ProjectComment[]
+  statReports            StatReport[]
+  assignedTickets        Ticket[]         @relation("TicketAssignee")
+  tickets                Ticket[]         @relation("TicketCreator")
+  ticketComments         TicketComment[]
+  assignedSupportEntries ChangeRequest[]  @relation("SupportAssignee")
+}
+
+model Project {
+  id             String           @id @default(cuid())
+  name           String
+  status         ProjectStatus    @default(LAUFEND)
+  /// Hex-Farbe aus der Projekt-Palette (Badges, Gantt, Kalender)
+  color          String
+  ownerId        String
+  /// Startdatum, sobald "Projekt berechnen" ausgeführt wurde
+  startDate      DateTime?
+  /// = letztes Schedule-Step-Enddatum minus 1 Monat
+  deadline       DateTime?
+  calculated     Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  checklist      ChecklistItem[]
+  owner          User             @relation(fields: [ownerId], references: [id])
+  comments       ProjectComment[]
+  steps          ScheduleStep[]
+  testingEntries TestingEntry[]
+
+  @@index([ownerId])
+}
+
+/// Berechneter Schritt aus dem 25-Schritte-Ablauf
+model ScheduleStep {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  /// Reihenfolge gemäss scheduleSteps-Definition (0-24)
+  order     Int
+  startDate DateTime
+  endDate   DateTime
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([startDate, endDate])
+}
+
+/// Ticket im Ticketboard (Spalten: Neu, In Progress, Done)
+model Ticket {
+  id             String          @id @default(cuid())
+  title          String
+  description    String          @default("")
+  status         TicketStatus    @default(NEU)
+  creatorId      String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  assigneeId     String?
+  priority       TicketPriority  @default(MITTEL)
+  assignee       User?           @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  creator        User            @relation("TicketCreator", fields: [creatorId], references: [id])
+  ticketComments TicketComment[]
+
+  @@index([creatorId])
+  @@index([assigneeId])
+  @@index([status])
+}
+
+/// Kommentar innerhalb eines Tickets
+model TicketComment {
+  id        String   @id @default(cuid())
+  ticketId  String
+  authorId  String
+  message   String
+  createdAt DateTime @default(now())
+  author    User     @relation(fields: [authorId], references: [id])
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+}
+
+/// Punkt der 29-teiligen Checkliste je Projekt
+model ChecklistItem {
+  id        String  @id @default(cuid())
+  projectId String
+  label     String
+  checked   Boolean @default(false)
+  /// Reihenfolge in der Checkliste (bestimmte Punkte lösen via PHASE_TRIGGER_ORDERS Timeline-Phasen aus)
+  order     Int
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+/// Statistik-Builder: ein Kunden-Report mit Kennzahlen + Tabellen-Daten für die Dashboard-Charts
+model StatReport {
+  id                  String   @id @default(cuid())
+  /// Kundenname
+  title               String
+  /// Datum bzw. Zeitraum, z. B. "Mai 2026" oder "01.05.–31.05.2026"
+  period              String   @default("")
+  callCount           Int      @default(0)
+  writtenCount        Int      @default(0)
+  forwardCount        Int      @default(0)
+  /// z. B. "4:32 min"
+  avgCallDuration     String   @default("")
+  /// z. B. "10:00–11:00 Uhr"
+  popularCallTime     String   @default("")
+  /// [{ month, minutes }]
+  callDurationByMonth Json     @default("[]")
+  /// [{ status: "vollständig" | "unvollständig" | "abgebrochen", count }]
+  statusBreakdown     Json     @default("[]")
+  /// [{ label, percent }]
+  topTags             Json     @default("[]")
+  /// [{ weekday, count }] Mo–So
+  requestsByWeekday   Json     @default("[]")
+  /// [{ month, count }]
+  requestsByMonth     Json     @default("[]")
+  /// [{ channel, count }] Telefon/Chat/Kontaktseite
+  requestsByChannel   Json     @default("[]")
+  /// [{ hour, count }] 0–23
+  requestsByHour      Json     @default("[]")
+  /// [{ label, count }]
+  requestsByDay       Json     @default("[]")
+  ownerId             String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  owner               User     @relation(fields: [ownerId], references: [id])
+
+  @@index([ownerId])
+}
+
+/// Kommentar in der Projekt-Kommentarspalte (Projektinformationen & Details)
+model ProjectComment {
+  id        String   @id @default(cuid())
+  projectId String
+  authorId  String
+  message   String
+  createdAt DateTime @default(now())
+  author    User     @relation(fields: [authorId], references: [id])
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+/// Übergeordnete Support-Anfrage: Kontaktdaten des Kunden (Wrapper für mehrere Einträge)
+model SupportRequest {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kontaktperson String          @default("")
+  praxisKunde   String          @default("") @map("praxis_kunde")
+  email         String          @default("")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  archived      Boolean         @default(false)
+  entries       ChangeRequest[]
+
+  @@map("support_requests")
+}
+
+/// Einzelner Eintrag (Sub-Ticket) innerhalb einer Support-Anfrage
+model ChangeRequest {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datum                 DateTime               @db.Date
+  prioritaet            String                 @default("mittel")
+  beschreibungProblem   String                 @default("") @map("beschreibung_problem")
+  linkAnfrage           String                 @default("") @map("link_anfrage")
+  fehlerhaftesVerhalten String                 @default("") @map("fehlerhaftes_verhalten")
+  erwartesVerhalten     String                 @default("") @map("erwartes_verhalten")
+  status                String                 @default("offen")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  supportRequestId      String                 @map("support_request_id") @db.Uuid
+  kategorie             String                 @default("sonstiges")
+  assigneeId            String?                @map("assignee_id")
+  archived              Boolean                @default(false)
+  assignee              User?                  @relation("SupportAssignee", fields: [assigneeId], references: [id])
+  supportRequest        SupportRequest         @relation(fields: [supportRequestId], references: [id], onDelete: Cascade)
+  screenshots           ScreenshotAttachment[]
+
+  @@index([supportRequestId])
+  @@index([assigneeId])
+  @@map("change_requests")
+}
+
+/// Screenshot-Anhang pro Eintrag (base64-kodiert)
+model ScreenshotAttachment {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  changeRequestId String        @map("change_request_id") @db.Uuid
+  filename        String
+  mimeType        String        @default("image/png") @map("mime_type")
+  data            String
+  createdAt       DateTime      @default(now()) @map("created_at")
+  changeRequest   ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+
+  @@index([changeRequestId])
+  @@map("screenshot_attachments")
+}
+
+/// In-App Benachrichtigung für einen User
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  /// z. B. "TICKET_ASSIGNED" | "TICKET_COMMENT" | "PROJECT_COMMENT" | "SUPPORT_ASSIGNED"
+  type      String
+  title     String
+  body      String   @default("")
+  /// Ziel-URL für Navigation beim Klicken
+  href      String   @default("")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+/// Konfiguration einer Online-Rezeption (pro Praxis/Kunde)
+model ReceptionClient {
+  id                 String              @id @default(cuid())
+  name               String
+  /// Eindeutiger URL-Slug für das Widget
+  slug               String              @unique
+  logoPath           String              @default("")
+  /// Titel im Widget (Standard = name)
+  widgetTitle        String              @default("")
+  widgetSubtitle     String              @default("")
+  defaultCountryCode String              @default("+41")
+  /// 11Labs Conversational AI Agent ID
+  elevenLabsAgentId  String              @default("")
+  privacyPolicyText  String              @default("")
+  privacyPolicyUrl   String              @default("")
+  qa1Label           String              @default("Termin")
+  qa1Target          String              @default("TERMIN")
+  qa2Label           String              @default("Chat")
+  qa2Target          String              @default("CHAT")
+  qa3Label           String              @default("Sonstiges")
+  qa3Target          String              @default("FORM_SONSTIGES")
+  fachrichtung       String              @default("")
+  introText          String              @default("")
+  /// Step-by-Step Formular als JSON ([{ id, title, subtitle, fields: [...] }])
+  formSteps          Json                @default("[]")
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  /// Primäre Akzentfarbe des Widgets (Hex)
+  accentColor        String              @default("#E30613")
+  locations          ReceptionLocation[]
+  news               ReceptionNews[]
+}
+
+/// Standort einer Praxis
+model ReceptionLocation {
+  id               String                  @id @default(cuid())
+  clientId         String
+  name             String                  @default("Hauptstandort")
+  address          String                  @default("")
+  phone            String                  @default("")
+  isDefault        Boolean                 @default(false)
+  order            Int                     @default(0)
+  /// Öffnungszeiten als Freitext (z. B. "Mo–Fr 08:00–17:00")
+  openingHoursText String                  @default("")
+  client           ReceptionClient         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  openingHours     ReceptionOpeningHours[]
+
+  @@index([clientId])
+}
+
+/// Öffnungszeiten pro Standort (dayOfWeek: 0=Mo … 6=So)
+model ReceptionOpeningHours {
+  id         String            @id @default(cuid())
+  locationId String
+  dayOfWeek  Int
+  openTime   String            @default("")
+  closeTime  String            @default("")
+  isClosed   Boolean           @default(false)
+  note       String            @default("")
+  location   ReceptionLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@index([locationId])
+}
+
+/// News-Eintrag auf der Startseite der Rezeption
+model ReceptionNews {
+  id        String          @id @default(cuid())
+  clientId  String
+  title     String
+  body      String          @default("")
+  order     Int             @default(0)
+  createdAt DateTime        @default(now())
+  client    ReceptionClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+}
+
+/// Eintrag im Testing-Protokoll eines Projekts
+model TestingEntry {
+  id        String   @id @default(cuid())
+  projectId String
+  title     String
+  /// Link zur Anfrage
+  link      String   @default("")
+  /// Fehlerhaftes Verhalten
+  issue     String   @default("")
+  comment   String   @default("")
+  order     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
 
 enum ProjectStatus {
@@ -28,331 +342,4 @@ enum TicketPriority {
   HOCH
   MITTEL
   NIEDRIG
-}
-
-/// Spiegelt einen Supabase-Auth-User (auth.users.id) für App-spezifische Profildaten.
-model User {
-  id          String       @id
-  email       String       @unique
-  name        String
-  role        String       @default("Manager")
-  projects        Project[]
-  tickets         Ticket[]         @relation("TicketCreator")
-  assignedTickets Ticket[]         @relation("TicketAssignee")
-  statReports              StatReport[]
-  comments                 ProjectComment[]
-  ticketComments           TicketComment[]
-  assignedSupportEntries   ChangeRequest[]  @relation("SupportAssignee")
-  notifications            Notification[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-}
-
-model Project {
-  id            String          @id @default(cuid())
-  name          String
-  status        ProjectStatus   @default(LAUFEND)
-  /// Hex-Farbe aus der Projekt-Palette (Badges, Gantt, Kalender)
-  color         String
-  ownerId       String
-  owner         User            @relation(fields: [ownerId], references: [id])
-  /// Startdatum, sobald "Projekt berechnen" ausgeführt wurde
-  startDate     DateTime?
-  /// = letztes Schedule-Step-Enddatum minus 1 Monat
-  deadline      DateTime?
-  calculated    Boolean         @default(false)
-  steps         ScheduleStep[]
-  checklist     ChecklistItem[]
-  testingEntries TestingEntry[]
-  comments      ProjectComment[]
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-
-  @@index([ownerId])
-}
-
-/// Berechneter Schritt aus dem 25-Schritte-Ablauf
-model ScheduleStep {
-  id        String   @id @default(cuid())
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name      String
-  /// Reihenfolge gemäss scheduleSteps-Definition (0-24)
-  order     Int
-  startDate DateTime
-  endDate   DateTime
-
-  @@index([projectId])
-  @@index([startDate, endDate])
-}
-
-/// Ticket im Ticketboard (Spalten: Neu, In Progress, Done)
-model Ticket {
-  id          String         @id @default(cuid())
-  title       String
-  description String         @default("")
-  status      TicketStatus   @default(NEU)
-  priority    TicketPriority @default(MITTEL)
-  creatorId   String
-  creator     User           @relation("TicketCreator", fields: [creatorId], references: [id])
-  assigneeId  String?
-  assignee    User?          @relation("TicketAssignee", fields: [assigneeId], references: [id])
-  ticketComments TicketComment[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-
-  @@index([creatorId])
-  @@index([assigneeId])
-  @@index([status])
-}
-
-/// Kommentar innerhalb eines Tickets
-model TicketComment {
-  id        String   @id @default(cuid())
-  ticketId  String
-  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  message   String
-  createdAt DateTime @default(now())
-
-  @@index([ticketId])
-}
-
-/// Punkt der 29-teiligen Checkliste je Projekt
-model ChecklistItem {
-  id        String   @id @default(cuid())
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  label     String
-  checked   Boolean  @default(false)
-  /// Reihenfolge in der Checkliste (bestimmte Punkte lösen via PHASE_TRIGGER_ORDERS Timeline-Phasen aus)
-  order     Int
-
-  @@index([projectId])
-}
-
-/// Statistik-Builder: ein Kunden-Report mit Kennzahlen + Tabellen-Daten für die Dashboard-Charts
-model StatReport {
-  id      String @id @default(cuid())
-  /// Kundenname
-  title   String
-  /// Datum bzw. Zeitraum, z. B. "Mai 2026" oder "01.05.–31.05.2026"
-  period  String @default("")
-
-  callCount         Int    @default(0)
-  writtenCount      Int    @default(0)
-  forwardCount      Int    @default(0)
-  /// z. B. "4:32 min"
-  avgCallDuration   String @default("")
-  /// z. B. "10:00–11:00 Uhr"
-  popularCallTime   String @default("")
-
-  /// [{ month, minutes }]
-  callDurationByMonth Json @default("[]")
-  /// [{ status: "vollständig" | "unvollständig" | "abgebrochen", count }]
-  statusBreakdown     Json @default("[]")
-  /// [{ label, percent }]
-  topTags             Json @default("[]")
-  /// [{ weekday, count }] Mo–So
-  requestsByWeekday   Json @default("[]")
-  /// [{ month, count }]
-  requestsByMonth     Json @default("[]")
-  /// [{ channel, count }] Telefon/Chat/Kontaktseite
-  requestsByChannel   Json @default("[]")
-  /// [{ hour, count }] 0–23
-  requestsByHour      Json @default("[]")
-  /// [{ label, count }]
-  requestsByDay       Json @default("[]")
-
-  ownerId   String
-  owner     User     @relation(fields: [ownerId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([ownerId])
-}
-
-/// Kommentar in der Projekt-Kommentarspalte (Projektinformationen & Details)
-model ProjectComment {
-  id        String   @id @default(cuid())
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  message   String
-  createdAt DateTime @default(now())
-
-  @@index([projectId])
-}
-
-/// Übergeordnete Support-Anfrage: Kontaktdaten des Kunden (Wrapper für mehrere Einträge)
-model SupportRequest {
-  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  kontaktperson String          @default("")
-  praxisKunde   String          @default("") @map("praxis_kunde")
-  email         String          @default("")
-  archived      Boolean         @default(false)
-  createdAt     DateTime        @default(now()) @map("created_at")
-  entries       ChangeRequest[]
-
-  @@map("support_requests")
-}
-
-/// Einzelner Eintrag (Sub-Ticket) innerhalb einer Support-Anfrage
-model ChangeRequest {
-  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  supportRequestId      String               @map("support_request_id") @db.Uuid
-  supportRequest        SupportRequest       @relation(fields: [supportRequestId], references: [id], onDelete: Cascade)
-  datum                 DateTime             @db.Date
-  kategorie             String               @default("sonstiges")
-  prioritaet            String               @default("mittel")
-  beschreibungProblem   String               @default("") @map("beschreibung_problem")
-  linkAnfrage           String               @default("") @map("link_anfrage")
-  fehlerhaftesVerhalten String               @default("") @map("fehlerhaftes_verhalten")
-  erwartesVerhalten     String               @default("") @map("erwartes_verhalten")
-  status                String               @default("offen")
-  assigneeId            String?              @map("assignee_id")
-  assignee              User?                @relation("SupportAssignee", fields: [assigneeId], references: [id])
-  screenshots           ScreenshotAttachment[]
-  archived              Boolean              @default(false)
-  createdAt             DateTime             @default(now()) @map("created_at")
-
-  @@index([supportRequestId])
-  @@index([assigneeId])
-  @@map("change_requests")
-}
-
-/// Screenshot-Anhang pro Eintrag (base64-kodiert)
-model ScreenshotAttachment {
-  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  changeRequestId String        @map("change_request_id") @db.Uuid
-  changeRequest   ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
-  filename        String
-  mimeType        String        @default("image/png") @map("mime_type")
-  data            String
-  createdAt       DateTime      @default(now()) @map("created_at")
-
-  @@index([changeRequestId])
-  @@map("screenshot_attachments")
-}
-
-/// In-App Benachrichtigung für einen User
-model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  /// z. B. "TICKET_ASSIGNED" | "TICKET_COMMENT" | "PROJECT_COMMENT" | "SUPPORT_ASSIGNED"
-  type      String
-  title     String
-  body      String   @default("")
-  /// Ziel-URL für Navigation beim Klicken
-  href      String   @default("")
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  @@index([userId, read])
-  @@index([userId, createdAt(sort: Desc)])
-}
-
-// ─── Online Rezeption ────────────────────────────────────────────────────────
-
-/// Konfiguration einer Online-Rezeption (pro Praxis/Kunde)
-model ReceptionClient {
-  id                 String   @id @default(cuid())
-  name               String
-  /// Eindeutiger URL-Slug für das Widget
-  slug               String   @unique
-  logoPath           String   @default("")
-  /// Titel im Widget (Standard = name)
-  widgetTitle        String   @default("")
-  widgetSubtitle     String   @default("")
-  defaultCountryCode String   @default("+41")
-  /// Primäre Akzentfarbe des Widgets (Hex)
-  accentColor        String   @default("#E30613")
-  /// 11Labs Conversational AI Agent ID
-  elevenLabsAgentId  String   @default("")
-  privacyPolicyText  String   @default("")
-  privacyPolicyUrl   String   @default("")
-  // Quick-Action-Buttons
-  qa1Label           String   @default("Termin")
-  qa1Target          String   @default("TERMIN")
-  qa2Label           String   @default("Chat")
-  qa2Target          String   @default("CHAT")
-  qa3Label           String   @default("Sonstiges")
-  qa3Target          String   @default("FORM_SONSTIGES")
-  // Startseite
-  fachrichtung       String   @default("")
-  introText          String   @default("")
-  /// Step-by-Step Formular als JSON ([{ id, title, subtitle, fields: [...] }])
-  formSteps          Json     @default("[]")
-
-  locations          ReceptionLocation[]
-  news               ReceptionNews[]
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-}
-
-/// Standort einer Praxis
-model ReceptionLocation {
-  id           String          @id @default(cuid())
-  clientId     String
-  client       ReceptionClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  name              String          @default("Hauptstandort")
-  address           String          @default("")
-  phone             String          @default("")
-  /// Öffnungszeiten als Freitext (z. B. "Mo–Fr 08:00–17:00")
-  openingHoursText  String          @default("")
-  isDefault         Boolean         @default(false)
-  order             Int             @default(0)
-  openingHours      ReceptionOpeningHours[]
-
-  @@index([clientId])
-}
-
-/// Öffnungszeiten pro Standort (dayOfWeek: 0=Mo … 6=So)
-model ReceptionOpeningHours {
-  id         String            @id @default(cuid())
-  locationId String
-  location   ReceptionLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  dayOfWeek  Int
-  openTime   String            @default("")
-  closeTime  String            @default("")
-  isClosed   Boolean           @default(false)
-  note       String            @default("")
-
-  @@index([locationId])
-}
-
-/// News-Eintrag auf der Startseite der Rezeption
-model ReceptionNews {
-  id        String          @id @default(cuid())
-  clientId  String
-  client    ReceptionClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  title     String
-  body      String          @default("")
-  order     Int             @default(0)
-  createdAt DateTime        @default(now())
-
-  @@index([clientId])
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Eintrag im Testing-Protokoll eines Projekts
-model TestingEntry {
-  id          String   @id @default(cuid())
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title       String
-  /// Link zur Anfrage
-  link        String   @default("")
-  /// Fehlerhaftes Verhalten
-  issue       String   @default("")
-  comment     String   @default("")
-  order       Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([projectId])
 }

@@ -5,7 +5,7 @@ import {
   Calendar, MessageCircle, MoreHorizontal, X, ChevronRight,
   ChevronLeft, Paperclip, User, Users, CheckCircle2,
   Clock, Newspaper, Send, Loader2, MapPin,
-  ExternalLink, FileText, Plus, House,
+  ExternalLink, FileText, Plus, House, Search,
   AlertCircle, Pill, Syringe, ScrollText, Cross, Activity, Bandage,
 } from "lucide-react";
 import type { ComponentType } from "react";
@@ -343,41 +343,152 @@ function ContactStep({ config, data, onChange }: {
 
 // ─── Medication List Field ─────────────────────────────────────────────────────
 
+type MedEntry = { name: string; qty: number; pkg?: string };
+type MedSearchResult = { id: number; name: string };
+
+function parseMeds(value: string): MedEntry[] {
+  if (!value) return [];
+  try { return JSON.parse(value) as MedEntry[]; } catch { return []; }
+}
+function serializeMeds(items: MedEntry[]): string {
+  return items.length ? JSON.stringify(items) : "";
+}
+
 function MedicationListField({ value, onChange, accent }: {
   value: string; onChange: (v: string) => void; accent: string;
 }) {
-  const items = value ? value.split("\n").filter(Boolean) : [];
+  const items = parseMeds(value);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<MedSearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
-  function addItem() {
-    onChange([...items, ""].join("\n"));
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    if (query.length < 2) { setResults([]); setOpen(false); return; }
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/medication-search?q=${encodeURIComponent(query)}`);
+        const data = await res.json() as MedSearchResult[];
+        setResults(data);
+        setOpen(data.length > 0);
+      } catch { setResults([]); }
+      finally { setLoading(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  function addMed(name: string) {
+    if (items.some((m) => m.name === name)) return;
+    onChange(serializeMeds([...items, { name, qty: 1 }]));
+    setQuery("");
+    setResults([]);
+    setOpen(false);
   }
-  function updateItem(i: number, v: string) {
-    const next = [...items]; next[i] = v; onChange(next.join("\n"));
+
+  function setQty(i: number, qty: number) {
+    if (qty < 1) return;
+    onChange(serializeMeds(items.map((m, idx) => idx === i ? { ...m, qty } : m)));
   }
+
+  function setPkg(i: number, pkg: string) {
+    onChange(serializeMeds(items.map((m, idx) => idx === i ? { ...m, pkg } : m)));
+  }
+
   function removeItem(i: number) {
-    onChange(items.filter((_, idx) => idx !== i).join("\n"));
+    onChange(serializeMeds(items.filter((_, idx) => idx !== i)));
   }
 
   return (
-    <div className="space-y-2">
-      {items.map((item, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 w-5 shrink-0 text-right">{i + 1}.</span>
+    <div className="space-y-3">
+      {/* Search input */}
+      <div ref={wrapRef} className="relative">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-gray-400 pointer-events-none" />
           <input
-            className={`${BASE.input} flex-1`}
-            placeholder="Medikament, Dosierung, Menge …"
-            value={item}
-            onChange={(e) => updateItem(i, e.target.value)}
+            className={`${BASE.input} pl-8 pr-8`}
+            placeholder="Medikament suchen …"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => results.length > 0 && setOpen(true)}
           />
-          <button type="button" onClick={() => removeItem(i)} className="text-gray-400 hover:text-red-500">
-            <X className="size-4" />
-          </button>
+          {loading && (
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 size-3.5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+          )}
         </div>
-      ))}
-      <button type="button" onClick={addItem}
-        className="inline-flex items-center gap-1.5 text-xs font-medium" style={{ color: accent }}>
-        <Plus className="size-3.5" /> Medikament hinzufügen
-      </button>
+
+        {/* Dropdown */}
+        {open && results.length > 0 && (
+          <div className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden">
+            <div className="max-h-48 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+              {results.map((r) => {
+                const already = items.some((m) => m.name === r.name);
+                return (
+                  <button key={r.id} type="button"
+                    onClick={() => !already && addMed(r.name)}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-left transition-colors ${
+                      already ? "cursor-default" : "hover:bg-gray-50"
+                    }`}>
+                    <span className={`text-sm truncate ${already ? "text-gray-400" : "text-gray-800"}`}>{r.name}</span>
+                    {already
+                      ? <span className="shrink-0 ml-2 text-xs text-gray-400">hinzugefügt</span>
+                      : <Plus className="shrink-0 ml-2 size-3.5" style={{ color: accent }} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Added medications list */}
+      {items.length > 0 && (
+        <div className="space-y-1.5">
+          {items.map((item, i) => (
+            <div key={i} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 space-y-1.5">
+              {/* Row 1: name + stepper + remove */}
+              <div className="flex items-center gap-2">
+                <span className="flex-1 text-sm text-gray-800 truncate min-w-0">{item.name}</span>
+                <div className="shrink-0 flex items-center gap-1">
+                  <button type="button" onClick={() => setQty(i, item.qty - 1)}
+                    className="flex size-5 items-center justify-center rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 text-xs font-bold leading-none">
+                    −
+                  </button>
+                  <span className="w-5 text-center text-xs font-medium text-gray-800">{item.qty}</span>
+                  <button type="button" onClick={() => setQty(i, item.qty + 1)}
+                    className="flex size-5 items-center justify-center rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 text-xs font-bold leading-none">
+                    +
+                  </button>
+                </div>
+                <button type="button" onClick={() => removeItem(i)} className="shrink-0 text-gray-400 hover:text-red-500">
+                  <X className="size-3.5" />
+                </button>
+              </div>
+              {/* Row 2: package size */}
+              <input
+                type="text"
+                value={item.pkg ?? ""}
+                onChange={(e) => setPkg(i, e.target.value)}
+                placeholder="Packungsgrösse (z. B. 28 Stk, 1 g)"
+                className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 placeholder-gray-400 outline-none"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {items.length === 0 && (
+        <p className="text-xs text-gray-400">Noch keine Medikamente hinzugefügt.</p>
+      )}
     </div>
   );
 }
