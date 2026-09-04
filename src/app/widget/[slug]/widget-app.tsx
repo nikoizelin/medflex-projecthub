@@ -1284,7 +1284,7 @@ function WidgetPanel({ config, location, onClose, initialTab, contact, setContac
   ];
 
   return (
-    <div className="flex w-[420px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl" style={{ maxHeight: 750 }}>
+    <div className="flex w-full sm:w-[420px] flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border border-gray-200 bg-white shadow-2xl" style={{ maxHeight: "min(750px, 90dvh)" }}>
       {/* Header */}
       <div className="flex shrink-0 items-center gap-2.5 border-b border-gray-100 px-4 py-3">
         <LogoMark config={config} size={8} />
@@ -1427,7 +1427,7 @@ export function WidgetApp({ config }: { config: WidgetConfig }) {
     const showLocation = privacyState === "accepted" && needsLocationSelect;
 
     return (
-      <div className="fixed bottom-5 right-5" style={{ pointerEvents: "auto" }}>
+      <div className="fixed bottom-0 left-0 right-0 sm:bottom-5 sm:left-auto sm:right-5" style={{ pointerEvents: "auto" }}>
         <div className="relative">
           <WidgetPanel
             config={config}
@@ -1453,7 +1453,7 @@ export function WidgetApp({ config }: { config: WidgetConfig }) {
 
   // ── Teaser ──
   return (
-    <div className="fixed bottom-5 right-5 flex flex-col items-end gap-2" style={{ pointerEvents: "auto" }}>
+    <div className="fixed bottom-0 left-0 right-0 flex flex-col items-end gap-2 p-4 sm:bottom-5 sm:left-auto sm:right-5 sm:p-0" style={{ pointerEvents: "auto" }}>
       {/* Quick-action buttons — icon only */}
       <div className="flex gap-1.5">
         {([
@@ -1469,7 +1469,7 @@ export function WidgetApp({ config }: { config: WidgetConfig }) {
       </div>
 
       {/* Main rectangle */}
-      <div className="relative w-[420px]">
+      <div className="relative w-full sm:w-[420px]">
         <button
           className="flex w-full cursor-pointer items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3.5 shadow-md hover:shadow-lg transition-shadow"
           onClick={() => openPanel("home")}
