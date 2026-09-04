@@ -1362,6 +1362,18 @@ export function WidgetApp({ config }: { config: WidgetConfig }) {
   const accent = config.accentColor;
   const needsLocationSelect = config.locations.length > 1 && !locationSelected;
 
+  // Make the widget page transparent so only the floating UI is visible in iframes
+  useEffect(() => {
+    document.documentElement.style.background = "transparent";
+    document.body.style.background = "transparent";
+  }, []);
+
+  // Notify parent page to enable pointer-events when panel is open
+  useEffect(() => {
+    const isOpen = view === "panel";
+    try { window.parent.postMessage({ type: "medflex-widget-open", open: isOpen }, "*"); } catch {}
+  }, [view]);
+
   useEffect(() => {
     try {
       const stored = localStorage.getItem(`reception_privacy_${config.slug}`);

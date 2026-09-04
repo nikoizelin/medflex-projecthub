@@ -12,6 +12,7 @@
   }
 
   var origin = src.split("/widget.js")[0];
+  var isOpen = false;
 
   var iframe = document.createElement("iframe");
   iframe.src = origin + "/widget/" + id;
@@ -31,4 +32,23 @@
   ].join("; ");
 
   document.body.appendChild(iframe);
+
+  // When the widget panel opens/closes, the widget sends a postMessage.
+  window.addEventListener("message", function (e) {
+    if (e.source !== iframe.contentWindow) return;
+    if (e.data && e.data.type === "medflex-widget-open") {
+      isOpen = e.data.open;
+      iframe.style.pointerEvents = isOpen ? "auto" : "none";
+    }
+  });
+
+  // Track mouse position: enable pointer-events when hovering the
+  // bottom-right widget zone (300×200 px) so the bubble stays clickable.
+  document.addEventListener("mousemove", function (e) {
+    if (isOpen) return; // already auto when panel is open
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+    var nearWidget = e.clientX >= vw - 320 && e.clientY >= vh - 220;
+    iframe.style.pointerEvents = nearWidget ? "auto" : "none";
+  });
 })();
