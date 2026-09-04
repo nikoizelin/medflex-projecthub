@@ -115,6 +115,7 @@
   --sidebar-accent-foreground: oklch(0.92 0.008 250);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.6 0.03 255);
+  color-scheme: dark;
 }
 
 /* Force light theme on a subtree (overrides inherited .dark variables) */
