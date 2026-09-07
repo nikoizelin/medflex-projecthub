@@ -40,7 +40,18 @@ export async function createProject(formData: FormData) {
 
 export async function updateProject(
   projectId: string,
-  data: { name?: string; color?: string; ownerId?: string; status?: string }
+  data: {
+    name?: string;
+    color?: string;
+    ownerId?: string;
+    status?: string;
+    contactPerson?: string;
+    agentPhone?: string;
+    transferNumber?: string;
+    useChat?: boolean;
+    useFormular?: boolean;
+    pisSystem?: string;
+  }
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const update: Record<string, any> = {};
@@ -64,6 +75,13 @@ export async function updateProject(
     if (!["LAUFEND", "PAUSIERT", "ABGESCHLOSSEN"].includes(data.status)) return;
     update.status = data.status;
   }
+
+  if (data.contactPerson !== undefined) update.contactPerson = data.contactPerson.trim();
+  if (data.agentPhone !== undefined) update.agentPhone = data.agentPhone.trim();
+  if (data.transferNumber !== undefined) update.transferNumber = data.transferNumber.trim();
+  if (data.useChat !== undefined) update.useChat = data.useChat;
+  if (data.useFormular !== undefined) update.useFormular = data.useFormular;
+  if (data.pisSystem !== undefined) update.pisSystem = data.pisSystem;
 
   if (Object.keys(update).length === 0) return;
 

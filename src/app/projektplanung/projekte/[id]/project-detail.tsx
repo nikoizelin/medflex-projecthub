@@ -93,6 +93,12 @@ interface Project {
   startDate: string | null;
   deadline: string | null;
   calculated: boolean;
+  contactPerson: string | null;
+  agentPhone: string | null;
+  transferNumber: string | null;
+  useChat: boolean;
+  useFormular: boolean;
+  pisSystem: string | null;
   checklist: ChecklistItem[];
   testingEntries: TestingEntry[];
   comments: ProjectComment[];
@@ -165,6 +171,14 @@ export function ProjectDetail({
   const [ownerId, setOwnerId] = useState(project.ownerId);
   const [ownerName, setOwnerName] = useState(project.ownerName);
   const [color, setColor] = useState(project.color);
+
+  const [contactPerson, setContactPerson] = useState(project.contactPerson ?? "");
+  const [agentPhone, setAgentPhone] = useState(project.agentPhone ?? "");
+  const [transferNumber, setTransferNumber] = useState(project.transferNumber ?? "");
+  const [useChat, setUseChat] = useState(project.useChat);
+  const [useFormular, setUseFormular] = useState(project.useFormular);
+  const [pisSystem, setPisSystem] = useState(project.pisSystem ?? "");
+  const [infoSaving, setInfoSaving] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(project.name);
@@ -351,7 +365,7 @@ export function ProjectDetail({
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="zeitplan">
             <CalendarRange className="size-4" />
-            Zeitplan
+            Infos &amp; Zeitplan
           </TabsTrigger>
           <TabsTrigger value="checkliste">
             <ListChecks className="size-4" />
@@ -364,6 +378,115 @@ export function ProjectDetail({
         </TabsList>
 
         <TabsContent value="zeitplan" className="mt-3.5 flex flex-col gap-3.5">
+          {/* ── Projektinfos ──────────────────────────────────────────────── */}
+          <div className="rounded-lg border bg-background p-3.5">
+            <p className="mb-3 text-sm font-medium">Projektinfos</p>
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="info-contact">Kontaktperson</Label>
+                  <Input
+                    id="info-contact"
+                    value={contactPerson}
+                    onChange={(e) => setContactPerson(e.target.value)}
+                    placeholder="Name der Kontaktperson"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="info-agent-phone">Telefonnummer Agent</Label>
+                  <Input
+                    id="info-agent-phone"
+                    value={agentPhone}
+                    onChange={(e) => setAgentPhone(e.target.value)}
+                    placeholder="+41 xx xxx xx xx"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="info-transfer">Telefonnummer transfer_to_number</Label>
+                  <Input
+                    id="info-transfer"
+                    value={transferNumber}
+                    onChange={(e) => setTransferNumber(e.target.value)}
+                    placeholder="+41 xx xxx xx xx"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Praxisinformationssystem (PIS)</Label>
+                  <Select value={pisSystem} onValueChange={(v) => setPisSystem(v ?? "")}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="PIS wählen…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[
+                        "Aeskulap",
+                        "Axon",
+                        "Carecenter",
+                        "Doctolib",
+                        "e.Dossier",
+                        "iMed",
+                        "IsyMed",
+                        "KG-System",
+                        "mediDOC",
+                        "Mediwin",
+                        "Möve",
+                        "Nexus Pratique",
+                        "Officemed",
+                        "Opale",
+                        "synapze",
+                        "TurboMed",
+                        "Vitodata",
+                        "Winmedical",
+                        "Sonstiges",
+                      ].map((pis) => (
+                        <SelectItem key={pis} value={pis}>{pis}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label>Kanalauswahl</Label>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={useChat}
+                      onCheckedChange={(v) => setUseChat(v === true)}
+                    />
+                    Chat
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={useFormular}
+                      onCheckedChange={(v) => setUseFormular(v === true)}
+                    />
+                    Formular
+                  </label>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  disabled={infoSaving}
+                  onClick={async () => {
+                    setInfoSaving(true);
+                    await updateProject(project.id, {
+                      contactPerson,
+                      agentPhone,
+                      transferNumber,
+                      useChat,
+                      useFormular,
+                      pisSystem: pisSystem || undefined,
+                    });
+                    setInfoSaving(false);
+                  }}
+                >
+                  {infoSaving ? "Speichern…" : "Speichern"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Zeitplan berechnen ─────────────────────────────────────────── */}
           <div className="rounded-lg border bg-background p-3.5">
             <p className="mb-2.5 text-sm font-medium">Zeitplan berechnen</p>
             <div className="flex flex-wrap items-center gap-2.5">

@@ -39,6 +39,12 @@ model Project {
   /// = letztes Schedule-Step-Enddatum minus 1 Monat
   deadline       DateTime?
   calculated     Boolean          @default(false)
+  contactPerson  String?
+  agentPhone     String?
+  transferNumber String?
+  useChat        Boolean          @default(false)
+  useFormular    Boolean          @default(false)
+  pisSystem      String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   checklist      ChecklistItem[]
