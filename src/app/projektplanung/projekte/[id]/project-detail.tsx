@@ -49,6 +49,7 @@ import {
   reorderChecklistItems,
 } from "../../actions";
 import { TestingProtocol, type TestingEntry } from "./testing-protocol";
+import { AgentTestSection } from "./agent-test";
 import { ProjectComments, type ProjectComment } from "./project-comments";
 
 type ProjectStatus = "LAUFEND" | "PAUSIERT" | "ABGESCHLOSSEN";
@@ -639,7 +640,8 @@ export function ProjectDetail({
           </div>
         </TabsContent>
 
-        <TabsContent value="testing" className="mt-3.5">
+        <TabsContent value="testing" className="mt-3.5 flex flex-col gap-3.5">
+          <AgentTestSection />
           <div className="rounded-lg border bg-background p-3.5">
             <TestingProtocol
               projectId={project.id}
