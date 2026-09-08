@@ -43,7 +43,7 @@ function runScenario(agentId: string, apiKey: string, scenarioText: string): Pro
 
     const timer = setTimeout(() => finish("Timeout (30s)"), 30_000);
 
-    const url = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${encodeURIComponent(agentId)}`;
+    const url = `wss://api.eu.residency.elevenlabs.io/v1/convai/conversation?agent_id=${encodeURIComponent(agentId)}`;
     log(`Verbinde: ${url}`);
 
     const ws = new WebSocket(url, { headers: { "xi-api-key": apiKey } });
