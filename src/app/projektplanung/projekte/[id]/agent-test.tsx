@@ -146,9 +146,7 @@ export function AgentTestSection() {
         <div key={i} className="rounded-lg border bg-background p-3.5">
           <div className="mb-1.5 flex items-center justify-between gap-2">
             <p className="text-sm font-medium">Szenario {i + 1}</p>
-            {result.error ? (
-              <span className="text-xs text-destructive">{result.error}</span>
-            ) : (
+            {!result.error && (
               <span className="text-xs text-emerald-600 dark:text-emerald-400">Abgeschlossen</span>
             )}
           </div>
@@ -172,8 +170,19 @@ export function AgentTestSection() {
                 </div>
               </div>
             ))}
+            {result.error && (
+              <div className="flex justify-start">
+                <div className="max-w-[85%] rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                  {result.error}
+                </div>
+              </div>
+            )}
             {result.transcript.length === 0 && !result.error && (
-              <p className="text-xs text-muted-foreground">Kein Transkript empfangen.</p>
+              <div className="flex justify-start">
+                <div className="max-w-[85%] rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                  Kein Transkript empfangen. Prüfe ob die Agent ID korrekt ist und der Agent Text-Input unterstützt.
+                </div>
+              </div>
             )}
           </div>
         </div>
