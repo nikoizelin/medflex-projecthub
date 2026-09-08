@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 type Message = { role: "user" | "agent"; text: string };
-type TestResult = { scenario: string; transcript: Message[]; error?: string };
+type TestResult = { scenario: string; transcript: Message[]; error?: string; debug: string[] };
 
 export function AgentTestSection() {
   const [agentId, setAgentId] = useState("");
@@ -185,6 +185,17 @@ export function AgentTestSection() {
               </div>
             )}
           </div>
+
+          {result.debug?.length > 0 && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                Debug-Log ({result.debug.length} Einträge)
+              </summary>
+              <pre className="mt-1.5 overflow-x-auto rounded-md bg-muted p-2.5 text-xs leading-relaxed text-muted-foreground">
+                {result.debug.join("\n")}
+              </pre>
+            </details>
+          )}
         </div>
       ))}
     </div>
