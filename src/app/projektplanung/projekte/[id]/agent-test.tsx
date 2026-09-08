@@ -12,7 +12,13 @@ type TestResult = { scenario: string; transcript: Message[]; error?: string };
 
 export function AgentTestSection() {
   const [agentId, setAgentId] = useState("");
-  const [scenarios, setScenarios] = useState<string[]>([""]);
+  const [scenarios, setScenarios] = useState<string[]>([
+    "Patientin will einen Termin buchen",
+    "Patient möchte einen Termin stornieren",
+    "Arzt ruft in die Praxis an aus der Klinik Hirslanden",
+    "Die Patientin ruft an weil sie ein Anruf der Praxis verpasst hat.",
+    "Der Patient ruft mit einer Festnetznummer an und möchte die Öffnungszeiten wissen",
+  ]);
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<TestResult[] | null>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
