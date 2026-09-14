@@ -39,21 +39,35 @@ model Project {
   /// = letztes Schedule-Step-Enddatum minus 1 Monat
   deadline       DateTime?
   calculated     Boolean          @default(false)
-  contactPerson  String?
-  agentPhone     String?
-  transferNumber String?
-  useChat        Boolean          @default(false)
-  useFormular    Boolean          @default(false)
-  pisSystem      String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  checklist      ChecklistItem[]
-  owner          User             @relation(fields: [ownerId], references: [id])
-  comments       ProjectComment[]
-  steps          ScheduleStep[]
-  testingEntries TestingEntry[]
+  contactPerson     String?
+  mainPhone         String?
+  agentPhone        String?
+  transferNumber    String?
+  useChat           Boolean           @default(false)
+  useFormular       Boolean           @default(false)
+  pisSystem         String?
+  manualPhase       String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  checklist         ChecklistItem[]
+  owner             User              @relation(fields: [ownerId], references: [id])
+  comments          ProjectComment[]
+  steps             ScheduleStep[]
+  testingEntries    TestingEntry[]
+  monitoringAlerts  MonitoringAlert[]
 
   @@index([ownerId])
+}
+
+/// Monitoring-Erinnerung: wird alle 3 Wochen für Projekte in Monitoring/Abgeschlossen erstellt
+model MonitoringAlert {
+  id        String   @id @default(cuid())
+  projectId String
+  sentAt    DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([sentAt(sort: Desc)])
 }
 
 /// Berechneter Schritt aus dem 25-Schritte-Ablauf

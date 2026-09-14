@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -32,7 +32,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { createProject, deleteProject } from "../actions";
+import { createProject, deleteProject, updateProjectPhase } from "../actions";
 
 type ProjectStatus = "LAUFEND" | "PAUSIERT" | "ABGESCHLOSSEN";
 
@@ -45,6 +45,7 @@ interface ProjectListItem {
   calculated: boolean;
   progress: number;
   phaseLabel: string;
+  manualPhase: string | null;
 }
 
 interface UserItem {
@@ -80,13 +81,26 @@ const COLUMNS = [
 
 type ColumnId = (typeof COLUMNS)[number]["id"];
 
+const MANUAL_PHASE_TO_COLUMN: Record<string, ColumnId> = {
+  Vorbereitung: "vorbereitung",
+  Setup:        "setup",
+  Entwicklung:  "entwicklung",
+  Schulung:     "entwicklung",
+  "Go-Live":    "golive",
+  Monitoring:   "monitoring",
+  Abgeschlossen:"abgeschlossen",
+};
+
 function getColumnId(p: ProjectListItem): ColumnId {
+  if (p.manualPhase && MANUAL_PHASE_TO_COLUMN[p.manualPhase]) {
+    return MANUAL_PHASE_TO_COLUMN[p.manualPhase];
+  }
   if (p.progress >= 100 || p.status === "ABGESCHLOSSEN") return "abgeschlossen";
   if (!p.calculated) return "vorbereitung";
   switch (p.phaseLabel) {
     case "Setup":        return "setup";
     case "Entwicklung":  return "entwicklung";
-    case "Schulung":     return "golive";
+    case "Schulung":     return "entwicklung";
     case "Go-Live":      return "golive";
     case "Monitoring":   return "monitoring";
     default:             return "vorbereitung";
@@ -256,6 +270,7 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
                         ) : (
                           <p className="mt-2 text-xs text-muted-foreground">{p.ownerName}</p>
                         )}
+                        <PhaseOverrideDropdown project={p} />
                         <DeleteProjectButton projectId={p.id} projectName={p.name} />
                       </div>
                     ))}
@@ -270,6 +285,36 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
       <p className="mt-3.5 text-xs text-muted-foreground">
         {filtered.length} {filtered.length === 1 ? "Projekt" : "Projekte"}
       </p>
+    </div>
+  );
+}
+
+const PHASE_OPTIONS = ["Vorbereitung", "Setup", "Entwicklung", "Schulung", "Go-Live", "Monitoring", "Abgeschlossen"];
+
+function PhaseOverrideDropdown({ project }: { project: ProjectListItem }) {
+  const [, startTransition] = useTransition();
+
+  return (
+    <div className="relative z-10 mt-2" onClick={(e) => e.preventDefault()}>
+      <Select
+        value={project.manualPhase ?? "auto"}
+        onValueChange={(v) => {
+          startTransition(() => updateProjectPhase(project.id, v === "auto" ? null : v));
+        }}
+      >
+        <SelectTrigger className="h-6 gap-1 rounded px-1.5 text-[10px] text-muted-foreground [&>svg]:size-3">
+          <ChevronDown className="size-3 shrink-0" />
+          <SelectValue>
+            {project.manualPhase ? `⚑ ${project.manualPhase}` : "Phase (auto)"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="auto">Phase (auto)</SelectItem>
+          {PHASE_OPTIONS.map((p) => (
+            <SelectItem key={p} value={p}>{p}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

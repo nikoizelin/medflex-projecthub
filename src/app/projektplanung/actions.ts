@@ -46,6 +46,7 @@ export async function updateProject(
     ownerId?: string;
     status?: string;
     contactPerson?: string;
+    mainPhone?: string;
     agentPhone?: string;
     transferNumber?: string;
     useChat?: boolean;
@@ -77,6 +78,7 @@ export async function updateProject(
   }
 
   if (data.contactPerson !== undefined) update.contactPerson = data.contactPerson.trim();
+  if (data.mainPhone !== undefined) update.mainPhone = data.mainPhone.trim();
   if (data.agentPhone !== undefined) update.agentPhone = data.agentPhone.trim();
   if (data.transferNumber !== undefined) update.transferNumber = data.transferNumber.trim();
   if (data.useChat !== undefined) update.useChat = data.useChat;
@@ -91,6 +93,14 @@ export async function updateProject(
   revalidatePath("/projektplanung/zeitplan");
   revalidatePath("/projektplanung/kalender");
   revalidatePath(`/projektplanung/projekte/${projectId}`);
+}
+
+export async function updateProjectPhase(projectId: string, manualPhase: string | null) {
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { manualPhase: manualPhase ?? null },
+  });
+  revalidatePath("/projektplanung/uebersicht");
 }
 
 export async function deleteProject(projectId: string) {

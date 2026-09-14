@@ -1,14 +1,50 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Play, Plus, Trash2 } from "lucide-react";
+import { Loader2, Play, Plus, Trash2, User, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 type Message = { role: "user" | "agent"; text: string };
-type TestResult = { scenario: string; transcript: Message[]; error?: string; debug: string[] };
+type TestResult = {
+  scenario: string;
+  transcript: Message[];
+  persona: string;
+  error?: string;
+  debug: string[];
+};
+
+function isToolMessage(text: string) {
+  return text.startsWith("[Tool:") || text.startsWith("[Tool-Ergebnis:");
+}
+
+function MessageBubble({ msg }: { msg: Message }) {
+  if (isToolMessage(msg.text)) {
+    return (
+      <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+        <Wrench className="mt-0.5 size-3 shrink-0" />
+        <span className="font-mono">{msg.text}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+      <div
+        className={cn(
+          "max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed",
+          msg.role === "user"
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted text-foreground"
+        )}
+      >
+        {msg.text}
+      </div>
+    </div>
+  );
+}
 
 export function AgentTestSection() {
   const [agentId, setAgentId] = useState("");
@@ -16,7 +52,7 @@ export function AgentTestSection() {
     "Patientin will einen Termin buchen",
     "Patient möchte einen Termin stornieren",
     "Arzt ruft in die Praxis an aus der Klinik Hirslanden",
-    "Die Patientin ruft an weil sie ein Anruf der Praxis verpasst hat.",
+    "Die Patientin ruft an weil sie einen Anruf der Praxis verpasst hat",
     "Der Patient ruft mit einer Festnetznummer an und möchte die Öffnungszeiten wissen",
   ]);
   const [running, setRunning] = useState(false);
@@ -84,9 +120,7 @@ export function AgentTestSection() {
                     placeholder={`Szenario ${i + 1}: z.B. Patient möchte Termin buchen`}
                     disabled={running}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && i === scenarios.length - 1 && scenarios.length < 5) {
-                        addScenario();
-                      }
+                      if (e.key === "Enter" && i === scenarios.length - 1) addScenario();
                     }}
                   />
                   {scenarios.length > 1 && (
@@ -102,19 +136,17 @@ export function AgentTestSection() {
                   )}
                 </div>
               ))}
-              {scenarios.length < 5 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addScenario}
-                  disabled={running}
-                  className="w-fit gap-1.5"
-                >
-                  <Plus className="size-3.5" />
-                  Szenario hinzufügen
-                </Button>
-              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addScenario}
+                disabled={running}
+                className="w-fit gap-1.5"
+              >
+                <Plus className="size-3.5" />
+                Szenario hinzufügen
+              </Button>
             </div>
           </div>
 
@@ -144,31 +176,24 @@ export function AgentTestSection() {
 
       {results?.map((result, i) => (
         <div key={i} className="rounded-lg border bg-background p-3.5">
-          <div className="mb-1.5 flex items-center justify-between gap-2">
+          <div className="mb-1 flex items-center justify-between gap-2">
             <p className="text-sm font-medium">Szenario {i + 1}</p>
-            {!result.error && (
+            {!result.error && result.transcript.length > 0 && (
               <span className="text-xs text-emerald-600 dark:text-emerald-400">Abgeschlossen</span>
             )}
           </div>
-          <p className="mb-3 text-xs text-muted-foreground">{result.scenario}</p>
+          <p className="text-xs text-muted-foreground">{result.scenario}</p>
 
-          <div className="flex flex-col gap-2">
+          {result.persona && (
+            <div className="mt-2 flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1.5">
+              <User className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">{result.persona}</span>
+            </div>
+          )}
+
+          <div className="mt-3 flex flex-col gap-2">
             {result.transcript.map((msg, j) => (
-              <div
-                key={j}
-                className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}
-              >
-                <div
-                  className={cn(
-                    "max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed",
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-foreground"
-                  )}
-                >
-                  {msg.text}
-                </div>
-              </div>
+              <MessageBubble key={j} msg={msg} />
             ))}
             {result.error && (
               <div className="flex justify-start">
@@ -180,7 +205,8 @@ export function AgentTestSection() {
             {result.transcript.length === 0 && !result.error && (
               <div className="flex justify-start">
                 <div className="max-w-[85%] rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                  Kein Transkript empfangen. Prüfe ob die Agent ID korrekt ist und der Agent Text-Input unterstützt.
+                  Kein Transkript empfangen. Prüfe ob die Agent ID korrekt ist und der Agent
+                  Text-Input unterstützt.
                 </div>
               </div>
             )}

@@ -28,6 +28,7 @@ export default async function ProjectDetailPage({
       deadline: true,
       calculated: true,
       contactPerson: true,
+      mainPhone: true,
       agentPhone: true,
       transferNumber: true,
       useChat: true,
@@ -42,6 +43,10 @@ export default async function ProjectDetailPage({
       testingEntries: {
         select: { id: true, title: true, link: true, issue: true, comment: true },
         orderBy: { order: "asc" },
+      },
+      monitoringAlerts: {
+        select: { id: true, sentAt: true },
+        orderBy: { sentAt: "desc" },
       },
       comments: {
         select: {
@@ -98,6 +103,7 @@ export default async function ProjectDetailPage({
           deadline: project.deadline?.toISOString() ?? null,
           calculated: project.calculated,
           contactPerson: project.contactPerson,
+          mainPhone: project.mainPhone,
           agentPhone: project.agentPhone,
           transferNumber: project.transferNumber,
           useChat: project.useChat,
@@ -123,11 +129,15 @@ export default async function ProjectDetailPage({
             authorId: c.authorId,
             authorName: c.author.name,
           })),
+          monitoringAlerts: project.monitoringAlerts.map((a) => ({
+            id: a.id,
+            sentAt: a.sentAt.toISOString(),
+          })),
         }}
         users={users}
         currentUserId={currentUser?.id ?? ""}
         currentUserName={currentUser?.name ?? "Unbekannt"}
-        initialTab={tab === "checkliste" || tab === "testing" ? tab : "zeitplan"}
+        initialTab={["checkliste", "testing", "monitoring"].includes(tab ?? "") ? tab! : "zeitplan"}
       />
     </div>
   );

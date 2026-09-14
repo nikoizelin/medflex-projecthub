@@ -11,6 +11,7 @@ export default async function UebersichtPage() {
       status: true,
       color: true,
       calculated: true,
+      manualPhase: true,
       owner: { select: { name: true } },
       checklist: { select: { order: true, checked: true } },
     },
@@ -34,6 +35,7 @@ export default async function UebersichtPage() {
       calculated: p.calculated,
       progress,
       phaseLabel,
+      manualPhase: p.manualPhase,
     };
   });
 

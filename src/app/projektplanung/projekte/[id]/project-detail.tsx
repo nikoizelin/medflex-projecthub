@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { CalendarRange, FlaskConical, GripVertical, ListChecks, Pencil, Plus } from "lucide-react";
+import { Activity, CalendarRange, FlaskConical, GripVertical, ListChecks, Pencil, Plus } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -51,6 +51,7 @@ import {
 import { TestingProtocol, type TestingEntry } from "./testing-protocol";
 import { AgentTestSection } from "./agent-test";
 import { ProjectComments, type ProjectComment } from "./project-comments";
+import { MonitoringTab, type MonitoringAlert } from "./monitoring-tab";
 
 type ProjectStatus = "LAUFEND" | "PAUSIERT" | "ABGESCHLOSSEN";
 
@@ -95,6 +96,7 @@ interface Project {
   deadline: string | null;
   calculated: boolean;
   contactPerson: string | null;
+  mainPhone: string | null;
   agentPhone: string | null;
   transferNumber: string | null;
   useChat: boolean;
@@ -103,6 +105,7 @@ interface Project {
   checklist: ChecklistItem[];
   testingEntries: TestingEntry[];
   comments: ProjectComment[];
+  monitoringAlerts: MonitoringAlert[];
 }
 
 // ── Sortable checklist item ────────────────────────────────────────────────
@@ -174,6 +177,7 @@ export function ProjectDetail({
   const [color, setColor] = useState(project.color);
 
   const [contactPerson, setContactPerson] = useState(project.contactPerson ?? "");
+  const [mainPhone, setMainPhone] = useState(project.mainPhone ?? "");
   const [agentPhone, setAgentPhone] = useState(project.agentPhone ?? "");
   const [transferNumber, setTransferNumber] = useState(project.transferNumber ?? "");
   const [useChat, setUseChat] = useState(project.useChat);
@@ -363,7 +367,7 @@ export function ProjectDetail({
       </Dialog>
 
       <Tabs defaultValue={initialTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="zeitplan">
             <CalendarRange className="size-4" />
             Infos &amp; Zeitplan
@@ -375,6 +379,10 @@ export function ProjectDetail({
           <TabsTrigger value="testing">
             <FlaskConical className="size-4" />
             Testing
+          </TabsTrigger>
+          <TabsTrigger value="monitoring">
+            <Activity className="size-4" />
+            Monitoring
           </TabsTrigger>
         </TabsList>
 
@@ -391,6 +399,15 @@ export function ProjectDetail({
                     value={contactPerson}
                     onChange={(e) => setContactPerson(e.target.value)}
                     placeholder="Name der Kontaktperson"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="info-main-phone">Hauptnummer Praxis</Label>
+                  <Input
+                    id="info-main-phone"
+                    value={mainPhone}
+                    onChange={(e) => setMainPhone(e.target.value)}
+                    placeholder="+41 xx xxx xx xx"
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -472,6 +489,7 @@ export function ProjectDetail({
                     setInfoSaving(true);
                     await updateProject(project.id, {
                       contactPerson,
+                      mainPhone,
                       agentPhone,
                       transferNumber,
                       useChat,
@@ -649,6 +667,14 @@ export function ProjectDetail({
               entries={project.testingEntries}
             />
           </div>
+        </TabsContent>
+
+        <TabsContent value="monitoring" className="mt-3.5">
+          <MonitoringTab
+            projectId={project.id}
+            projectName={project.name}
+            alerts={project.monitoringAlerts}
+          />
         </TabsContent>
       </Tabs>
     </div>
