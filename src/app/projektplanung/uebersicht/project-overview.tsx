@@ -2,7 +2,17 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Plus, Search, Trash2, ChevronDown } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -32,6 +42,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { createProject, deleteProject, updateProjectPhase } from "../actions";
 
 type ProjectStatus = "LAUFEND" | "PAUSIERT" | "ABGESCHLOSSEN";
@@ -81,6 +92,16 @@ const COLUMNS = [
 
 type ColumnId = (typeof COLUMNS)[number]["id"];
 
+// Maps drag target column → manualPhase value (null = auto/clear)
+const COLUMN_TO_PHASE: Record<ColumnId, string | null> = {
+  vorbereitung: null,
+  setup:        "Setup",
+  entwicklung:  "Entwicklung",
+  golive:       "Go-Live",
+  monitoring:   "Monitoring",
+  abgeschlossen:"Abgeschlossen",
+};
+
 const MANUAL_PHASE_TO_COLUMN: Record<string, ColumnId> = {
   Vorbereitung: "vorbereitung",
   Setup:        "setup",
@@ -107,11 +128,105 @@ function getColumnId(p: ProjectListItem): ColumnId {
   }
 }
 
+// ── Draggable card ─────────────────────────────────────────────────────────
+
+function DraggableCard({ project, isDragOverlay = false }: { project: ProjectListItem; isDragOverlay?: boolean }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: project.id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "group relative cursor-grab rounded-md border bg-background p-3 shadow-sm transition-colors active:cursor-grabbing",
+        isDragging && !isDragOverlay && "opacity-40",
+        isDragOverlay && "rotate-1 shadow-lg",
+        !isDragging && "hover:border-foreground/20"
+      )}
+      style={{ touchAction: "none" }}
+    >
+      {/* Link covers the card but drag takes priority */}
+      {!isDragOverlay && (
+        <Link
+          href={`/projektplanung/projekte/${project.id}`}
+          className="absolute inset-0 z-0"
+          aria-label={`${project.name} öffnen`}
+          draggable={false}
+        />
+      )}
+      <div className="mb-1.5 flex items-center gap-1.5 pr-6">
+        <span className="size-2 shrink-0 rounded-full" style={{ background: project.color }} />
+        <p className="text-sm font-medium leading-tight">{project.name}</p>
+      </div>
+      <span className={`inline-flex h-5 items-center rounded-full px-2 text-xs font-medium ${STATUS_BADGE_CLASS[project.status]}`}>
+        {STATUS_LABEL[project.status]}
+      </span>
+      {project.calculated ? (
+        <>
+          <div className="mt-2 mb-1 h-1 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full" style={{ width: `${project.progress}%`, background: project.color }} />
+          </div>
+          <p className="text-xs text-muted-foreground">{project.progress}% &middot; {project.ownerName}</p>
+        </>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">{project.ownerName}</p>
+      )}
+      {!isDragOverlay && <DeleteProjectButton projectId={project.id} projectName={project.name} />}
+    </div>
+  );
+}
+
+// ── Droppable column ───────────────────────────────────────────────────────
+
+function DroppableColumn({
+  col,
+  projects,
+}: {
+  col: { id: ColumnId; label: string };
+  projects: ProjectListItem[];
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: col.id });
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col overflow-hidden rounded-lg border bg-muted/30 transition-colors",
+        isOver && "border-blue-500/50 bg-blue-500/5"
+      )}
+    >
+      <div className={cn("flex items-center gap-2 border-b bg-muted/60 px-3 py-2 transition-colors", isOver && "bg-blue-500/10")}>
+        <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-foreground/70">
+          {col.label}
+        </span>
+        {projects.length > 0 && (
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-background text-[10px] font-semibold text-muted-foreground">
+            {projects.length}
+          </span>
+        )}
+      </div>
+      <div ref={setNodeRef} className="flex min-h-12 flex-col gap-2 p-2">
+        {projects.map((p) => (
+          <DraggableCard key={p.id} project={p} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main overview ──────────────────────────────────────────────────────────
+
 export function ProjectOverview({ projects, users }: { projects: ProjectListItem[]; users: UserItem[] }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"alle" | ProjectStatus>("alle");
   const [open, setOpen] = useState(false);
   const [selectedOwnerId, setSelectedOwnerId] = useState("");
+  const [activeProject, setActiveProject] = useState<ProjectListItem | null>(null);
+  const [, startTransition] = useTransition();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   const filtered = useMemo(() => {
     return projects.filter((p) => {
@@ -127,6 +242,25 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
     for (const p of filtered) map.get(getColumnId(p))!.push(p);
     return map;
   }, [filtered]);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const project = projects.find((p) => p.id === event.active.id);
+    setActiveProject(project ?? null);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveProject(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const projectId = active.id as string;
+    const columnId = over.id as ColumnId;
+
+    if (!(columnId in COLUMN_TO_PHASE)) return;
+
+    const newPhase = COLUMN_TO_PHASE[columnId];
+    startTransition(() => updateProjectPhase(projectId, newPhase));
+  };
 
   return (
     <div>
@@ -156,10 +290,7 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="ownerId">Verantwortliche/r</Label>
                 <input type="hidden" name="ownerId" value={selectedOwnerId} />
-                <Select
-                  value={selectedOwnerId}
-                  onValueChange={(v) => v && setSelectedOwnerId(v)}
-                >
+                <Select value={selectedOwnerId} onValueChange={(v) => v && setSelectedOwnerId(v)}>
                   <SelectTrigger>
                     <SelectValue>
                       {selectedOwnerId
@@ -170,17 +301,13 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
                   <SelectContent>
                     <SelectItem value="">Aktueller Benutzer (Standard)</SelectItem>
                     {users.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.name}
-                      </SelectItem>
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <DialogFooter>
-                <DialogClose render={<Button type="button" variant="outline" />}>
-                  Abbrechen
-                </DialogClose>
+                <DialogClose render={<Button type="button" variant="outline" />}>Abbrechen</DialogClose>
                 <Button type="submit">Projekt speichern</Button>
               </DialogFooter>
             </form>
@@ -214,72 +341,25 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground">Keine Projekte gefunden.</p>
       ) : (
-        <div className="overflow-x-auto pb-2">
-          <div
-            className="grid gap-2"
-            style={{ gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(200px, 1fr))` }}
-          >
-            {COLUMNS.map((col) => {
-              const colProjects = byColumn.get(col.id) ?? [];
-              return (
-                <div key={col.id} className="flex flex-col overflow-hidden rounded-lg border bg-muted/30">
-                  {/* Column header */}
-                  <div className="flex items-center gap-2 border-b bg-muted/60 px-3 py-2">
-                    <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-foreground/70">
-                      {col.label}
-                    </span>
-                    {colProjects.length > 0 && (
-                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-background text-[10px] font-semibold text-muted-foreground">
-                        {colProjects.length}
-                      </span>
-                    )}
-                  </div>
-                  {/* Cards */}
-                  <div className="flex flex-col gap-2 p-2">
-                    {colProjects.map((p) => (
-                      <div
-                        key={p.id}
-                        className="group relative rounded-md border bg-background p-3 shadow-sm transition-colors hover:border-foreground/20"
-                      >
-                        <Link
-                          href={`/projektplanung/projekte/${p.id}`}
-                          className="absolute inset-0 z-0"
-                          aria-label={`${p.name} öffnen`}
-                        />
-                        <div className="mb-1.5 flex items-center gap-1.5 pr-6">
-                          <span className="size-2 shrink-0 rounded-full" style={{ background: p.color }} />
-                          <p className="text-sm font-medium leading-tight">{p.name}</p>
-                        </div>
-                        <span
-                          className={`inline-flex h-5 items-center rounded-full px-2 text-xs font-medium ${STATUS_BADGE_CLASS[p.status]}`}
-                        >
-                          {STATUS_LABEL[p.status]}
-                        </span>
-                        {p.calculated ? (
-                          <>
-                            <div className="mt-2 mb-1 h-1 overflow-hidden rounded-full bg-muted">
-                              <div
-                                className="h-full rounded-full"
-                                style={{ width: `${p.progress}%`, background: p.color }}
-                              />
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {p.progress}% &middot; {p.ownerName}
-                            </p>
-                          </>
-                        ) : (
-                          <p className="mt-2 text-xs text-muted-foreground">{p.ownerName}</p>
-                        )}
-                        <PhaseOverrideDropdown project={p} />
-                        <DeleteProjectButton projectId={p.id} projectName={p.name} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <div className="overflow-x-auto pb-2">
+            <div
+              className="grid gap-2"
+              style={{ gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(200px, 1fr))` }}
+            >
+              {COLUMNS.map((col) => (
+                <DroppableColumn
+                  key={col.id}
+                  col={col}
+                  projects={byColumn.get(col.id) ?? []}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+          <DragOverlay dropAnimation={null}>
+            {activeProject && <DraggableCard project={activeProject} isDragOverlay />}
+          </DragOverlay>
+        </DndContext>
       )}
 
       <p className="mt-3.5 text-xs text-muted-foreground">
@@ -289,43 +369,7 @@ export function ProjectOverview({ projects, users }: { projects: ProjectListItem
   );
 }
 
-const PHASE_OPTIONS = ["Vorbereitung", "Setup", "Entwicklung", "Schulung", "Go-Live", "Monitoring", "Abgeschlossen"];
-
-function PhaseOverrideDropdown({ project }: { project: ProjectListItem }) {
-  const [, startTransition] = useTransition();
-
-  return (
-    <div className="relative z-10 mt-2" onClick={(e) => e.preventDefault()}>
-      <Select
-        value={project.manualPhase ?? "auto"}
-        onValueChange={(v) => {
-          startTransition(() => updateProjectPhase(project.id, v === "auto" ? null : v));
-        }}
-      >
-        <SelectTrigger className="h-6 gap-1 rounded px-1.5 text-[10px] text-muted-foreground [&>svg]:size-3">
-          <ChevronDown className="size-3 shrink-0" />
-          <SelectValue>
-            {project.manualPhase ? `⚑ ${project.manualPhase}` : "Phase (auto)"}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="auto">Phase (auto)</SelectItem>
-          {PHASE_OPTIONS.map((p) => (
-            <SelectItem key={p} value={p}>{p}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
-function DeleteProjectButton({
-  projectId,
-  projectName,
-}: {
-  projectId: string;
-  projectName: string;
-}) {
+function DeleteProjectButton({ projectId, projectName }: { projectId: string; projectName: string }) {
   const [isPending, startTransition] = useTransition();
 
   return (

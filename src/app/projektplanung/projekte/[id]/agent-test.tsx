@@ -81,9 +81,15 @@ export function AgentTestSection() {
           scenarios: valid.map((text) => ({ text })),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Unbekannter Fehler");
-      setResults(data.results);
+      const text = await res.text();
+      let data: { results?: TestResult[]; error?: string };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(text.slice(0, 300) || `HTTP ${res.status}`);
+      }
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setResults(data.results ?? []);
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Fehler beim Ausführen");
     } finally {

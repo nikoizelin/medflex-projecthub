@@ -51,7 +51,7 @@ Antworte NUR mit einem JSON-Objekt ohne Markdown-Codeblock:
 
   try {
     const raw = msg.content[0].type === "text" ? msg.content[0].text.trim() : "{}";
-    const cleaned = raw.replace(/```json|```/g, "").trim();
+    const cleaned = raw.replace(/^```(?:json)?\s*/m, "").replace(/\s*```$/m, "").trim();
     return JSON.parse(cleaned);
   } catch {
     return {
@@ -91,14 +91,12 @@ async function getPersonaReply(
   agentText: string
 ): Promise<string> {
   const messages: ConvHistory[] = [...history, { role: "user", content: agentText }];
-
   const resp = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 200,
     system: personaSystemPrompt(persona, scenario),
     messages,
   });
-
   return resp.content[0].type === "text" ? resp.content[0].text.trim() : "<<ENDE>>";
 }
 
@@ -120,24 +118,31 @@ Gib das Ergebnis als JSON zurück.`,
       },
     ],
   });
-
   return resp.content[0].type === "text" ? resp.content[0].text.trim() : "{}";
 }
 
-// ── Main scenario runner ───────────────────────────────────────────────────
+// ── Route handler ──────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "ELEVENLABS_API_KEY nicht konfiguriert" }, { status: 500 });
+  if (!apiKey)
+    return NextResponse.json({ error: "ELEVENLABS_API_KEY nicht konfiguriert" }, { status: 500 });
   if (!process.env.ANTHROPIC_API_KEY)
     return NextResponse.json({ error: "ANTHROPIC_API_KEY nicht konfiguriert" }, { status: 500 });
 
-  const body = await req.json();
-  const agentId: string = (body.agentId ?? "").trim();
-  const scenarios: { text: string }[] = body.scenarios ?? [];
+  let body: { agentId?: string; scenarios?: { text: string }[] };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Ungültiger Request-Body" }, { status: 400 });
+  }
+
+  const agentId = (body.agentId ?? "").trim();
+  const scenarios = body.scenarios ?? [];
 
   if (!agentId) return NextResponse.json({ error: "Agent ID fehlt" }, { status: 400 });
-  if (!scenarios.length) return NextResponse.json({ error: "Keine Szenarien angegeben" }, { status: 400 });
+  if (!scenarios.length)
+    return NextResponse.json({ error: "Keine Szenarien angegeben" }, { status: 400 });
 
   const results: ScenarioResult[] = [];
   for (const s of scenarios) {
@@ -146,6 +151,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ results });
 }
+
+// ── Scenario runner ────────────────────────────────────────────────────────
 
 function runScenario(agentId: string, apiKey: string, scenarioText: string): Promise<ScenarioResult> {
   return new Promise(async (resolve) => {
@@ -173,7 +180,6 @@ function runScenario(agentId: string, apiKey: string, scenarioText: string): Pro
       });
     };
 
-    // 120 s hard timeout per scenario
     const timer = setTimeout(() => finish("Timeout (120s)"), 120_000);
 
     // Generate persona first
@@ -182,8 +188,7 @@ function runScenario(agentId: string, apiKey: string, scenarioText: string): Pro
       persona = await generatePersona(scenarioText);
       log(`Persona: ${persona.name}, geb. ${persona.birthDate}, ${persona.phone}`);
     } catch (e) {
-      log(`Persona-Generierung fehlgeschlagen: ${e}`);
-      finish("Persona-Generierung fehlgeschlagen");
+      finish(`Persona-Generierung fehlgeschlagen: ${e}`);
       return;
     }
 
@@ -207,30 +212,25 @@ function runScenario(agentId: string, apiKey: string, scenarioText: string): Pro
         return;
       }
 
-      // ── Agent speaks ────────────────────────────────────────────────────
+      // Agent speaks
       if (msg.type === "agent_response") {
         const agentText: string =
           (msg.agent_response_event as Record<string, unknown>)?.agent_response as string
           ?? (msg.agent_response as string)
           ?? "";
-
         if (!agentText) return;
 
         log(`Agent: "${agentText}"`);
         transcript.push({ role: "agent", text: agentText });
 
-        // Let Claude (as persona) reply
-        log("Generiere Persona-Antwort…");
         let reply: string;
         try {
           reply = await getPersonaReply(persona!, scenarioText, convHistory, agentText);
         } catch (e) {
-          log(`Claude-Fehler: ${e}`);
-          finish("Claude API Fehler");
+          finish(`Claude API Fehler: ${e}`);
           return;
         }
 
-        // Update conversation history
         convHistory.push({ role: "user", content: agentText });
         convHistory.push({ role: "assistant", content: reply });
 
@@ -242,55 +242,37 @@ function runScenario(agentId: string, apiKey: string, scenarioText: string): Pro
 
         log(`Persona: "${reply}"`);
         transcript.push({ role: "user", text: reply });
-
         ws.send(JSON.stringify({ type: "user_message", user_message: reply }));
-        log(`→ user_message gesendet`);
         return;
       }
 
-      // ── Tool call from agent ────────────────────────────────────────────
+      // Tool call from agent
       if (msg.type === "client_tool_call") {
         const toolCallId = msg.tool_call_id as string;
         const toolName = msg.tool_name as string;
         const parameters = (msg.parameters ?? {}) as Record<string, unknown>;
 
         log(`Tool-Call: ${toolName}(${JSON.stringify(parameters)})`);
-        transcript.push({
-          role: "agent",
-          text: `[Tool: ${toolName}(${JSON.stringify(parameters)})]`,
-        });
+        transcript.push({ role: "agent", text: `[Tool: ${toolName}(${JSON.stringify(parameters)})]` });
 
         let result: string;
         try {
           result = await getPersonaToolResult(persona!, toolName, parameters);
-        } catch (e) {
-          log(`Tool-Antwort-Fehler: ${e}`);
+        } catch {
           result = "{}";
         }
 
         log(`Tool-Ergebnis: ${result}`);
         transcript.push({ role: "user", text: `[Tool-Ergebnis: ${result}]` });
-
-        ws.send(
-          JSON.stringify({
-            type: "client_tool_result",
-            tool_call_id: toolCallId,
-            result,
-            is_error: false,
-          })
-        );
-        log(`→ client_tool_result gesendet`);
+        ws.send(JSON.stringify({ type: "client_tool_result", tool_call_id: toolCallId, result, is_error: false }));
         return;
       }
 
-      // ── Conversation initiation: send first opener ──────────────────────
       if (msg.type === "conversation_initiation_metadata") {
-        log("Warte auf ersten Agent-Gruss…");
-        // First message comes via agent_response, we react there
+        log("Verbindung initialisiert – warte auf ersten Agent-Gruss…");
         return;
       }
 
-      // ── Conversation ended by server ────────────────────────────────────
       if (msg.type === "conversation_ended" || msg.type === "conversation_end") {
         log("Server signalisiert Gesprächsende");
         finish();
@@ -301,7 +283,6 @@ function runScenario(agentId: string, apiKey: string, scenarioText: string): Pro
       log(`WebSocket geschlossen: ${code} ${reason.toString() || "(leer)"}`);
       finish();
     });
-
     ws.on("error", (err) => {
       log(`WebSocket Fehler: ${err.message}`);
       finish(err.message);
