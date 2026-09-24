@@ -1196,18 +1196,24 @@ function HomeTab({ config, location, onOpenForm, onOpenChat }: {
       )}
 
       {/* CTAs */}
-      <div className="grid grid-cols-2 gap-2">
-        <button onClick={onOpenForm}
-          className="flex flex-col items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3.5 text-center hover:bg-gray-100 transition-colors">
-          <Calendar className="size-5" style={{ color: accent }} />
-          <span className="text-xs font-medium text-gray-800">Termin anfragen</span>
-        </button>
-        <button onClick={onOpenChat}
-          className="flex flex-col items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3.5 text-center hover:bg-gray-100 transition-colors">
-          <MessageCircle className="size-5" style={{ color: accent }} />
-          <span className="text-xs font-medium text-gray-800">Direkt chatten</span>
-        </button>
-      </div>
+      {(config.formSteps.length > 0 || config.elevenLabsAgentId) && (
+        <div className={`grid gap-2 ${config.formSteps.length > 0 && config.elevenLabsAgentId ? "grid-cols-2" : "grid-cols-1"}`}>
+          {config.formSteps.length > 0 && (
+            <button onClick={onOpenForm}
+              className="flex flex-col items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3.5 text-center hover:bg-gray-100 transition-colors">
+              <Calendar className="size-5" style={{ color: accent }} />
+              <span className="text-xs font-medium text-gray-800">Termin anfragen</span>
+            </button>
+          )}
+          {config.elevenLabsAgentId && (
+            <button onClick={onOpenChat}
+              className="flex flex-col items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3.5 text-center hover:bg-gray-100 transition-colors">
+              <MessageCircle className="size-5" style={{ color: accent }} />
+              <span className="text-xs font-medium text-gray-800">Direkt chatten</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Öffnungszeiten */}
       {location && (location.openingHoursText || location.openingHours.some((h) => !h.isClosed)) && (
@@ -1279,7 +1285,7 @@ function WidgetPanel({ config, location, onClose, initialTab, contact, setContac
 
   const TABS: { id: PanelTab; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
     { id: "home",     label: "Home",    Icon: House },
-    { id: "formular", label: "Formular", Icon: FileText },
+    ...(config.formSteps.length > 0 ? [{ id: "formular" as PanelTab, label: "Formular", Icon: FileText }] : []),
     ...(config.elevenLabsAgentId ? [{ id: "chat" as PanelTab, label: "Chat", Icon: MessageCircle }] : []),
   ];
 
@@ -1401,7 +1407,8 @@ export function WidgetApp({ config }: { config: WidgetConfig }) {
   // Quick-action target handler
   function handleQA(target: string) {
     if (target === "CHAT") openPanel("chat");
-    else openPanel("formular");
+    else if (config.formSteps.length > 0) openPanel("formular");
+    else openPanel("home");
   }
 
   // ── Collapsed ──
@@ -1457,7 +1464,7 @@ export function WidgetApp({ config }: { config: WidgetConfig }) {
       {/* Quick-action buttons — icon only */}
       <div className="flex gap-1.5">
         {([
-          { Icon: Calendar,      onClick: () => { setView("panel"); handleQA(config.qa1Target); } },
+          ...(config.formSteps.length > 0 ? [{ Icon: Calendar,      onClick: () => { setView("panel"); handleQA(config.qa1Target); } }] : []),
           { Icon: MessageCircle, onClick: () => { setView("panel"); handleQA(config.qa2Target); } },
           { Icon: MoreHorizontal, onClick: () => openPanel("home") },
         ] as { Icon: React.ComponentType<{ className?: string }>; onClick: () => void }[]).map(({ Icon, onClick }, i) => (
