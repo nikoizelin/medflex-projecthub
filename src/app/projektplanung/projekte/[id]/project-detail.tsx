@@ -96,6 +96,7 @@ interface Project {
   deadline: string | null;
   calculated: boolean;
   contactPerson: string | null;
+  contactEmail: string | null;
   mainPhone: string | null;
   agentPhone: string | null;
   transferNumber: string | null;
@@ -177,6 +178,7 @@ export function ProjectDetail({
   const [color, setColor] = useState(project.color);
 
   const [contactPerson, setContactPerson] = useState(project.contactPerson ?? "");
+  const [contactEmail, setContactEmail] = useState(project.contactEmail ?? "");
   const [mainPhone, setMainPhone] = useState(project.mainPhone ?? "");
   const [agentPhone, setAgentPhone] = useState(project.agentPhone ?? "");
   const [transferNumber, setTransferNumber] = useState(project.transferNumber ?? "");
@@ -391,6 +393,7 @@ export function ProjectDetail({
           <div className="rounded-lg border bg-background p-3.5">
             <p className="mb-3 text-sm font-medium">Projektinfos</p>
             <div className="flex flex-col gap-3">
+              {/* Kontaktperson + Email */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="info-contact">Kontaktperson</Label>
@@ -401,6 +404,19 @@ export function ProjectDetail({
                     placeholder="Name der Kontaktperson"
                   />
                 </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="info-email">E-Mail</Label>
+                  <Input
+                    id="info-email"
+                    type="email"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    placeholder="kontakt@praxis.ch"
+                  />
+                </div>
+              </div>
+              {/* 3 Telefonnummern */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="info-main-phone">Hauptnummer Praxis</Label>
                   <Input
@@ -420,7 +436,7 @@ export function ProjectDetail({
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="info-transfer">Telefonnummer transfer_to_number</Label>
+                  <Label htmlFor="info-transfer">Transfer-Nummer</Label>
                   <Input
                     id="info-transfer"
                     value={transferNumber}
@@ -428,6 +444,9 @@ export function ProjectDetail({
                     placeholder="+41 xx xxx xx xx"
                   />
                 </div>
+              </div>
+              {/* PIS + Kanalauswahl */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
                   <Label>Praxisinformationssystem (PIS)</Label>
                   <Select value={pisSystem} onValueChange={(v) => setPisSystem(v ?? "")}>
@@ -436,49 +455,28 @@ export function ProjectDetail({
                     </SelectTrigger>
                     <SelectContent>
                       {[
-                        "Aeskulap",
-                        "Axon",
-                        "Carecenter",
-                        "Doctolib",
-                        "e.Dossier",
-                        "iMed",
-                        "IsyMed",
-                        "KG-System",
-                        "mediDOC",
-                        "Mediwin",
-                        "Möve",
-                        "Nexus Pratique",
-                        "Officemed",
-                        "Opale",
-                        "synapze",
-                        "TurboMed",
-                        "Vitodata",
-                        "Winmedical",
-                        "Sonstiges",
+                        "Aeskulap","Axon","Carecenter","Doctolib","e.Dossier",
+                        "iMed","IsyMed","KG-System","mediDOC","Mediwin","Möve",
+                        "Nexus Pratique","Officemed","Opale","synapze","TurboMed",
+                        "Vitodata","Winmedical","Sonstiges",
                       ].map((pis) => (
                         <SelectItem key={pis} value={pis}>{pis}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>Kanalauswahl</Label>
-                <div className="flex flex-wrap gap-4">
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={useChat}
-                      onCheckedChange={(v) => setUseChat(v === true)}
-                    />
-                    Chat
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={useFormular}
-                      onCheckedChange={(v) => setUseFormular(v === true)}
-                    />
-                    Formular
-                  </label>
+                <div className="flex flex-col gap-2">
+                  <Label>Kanalauswahl</Label>
+                  <div className="flex flex-wrap gap-4 pt-1">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox checked={useChat} onCheckedChange={(v) => setUseChat(v === true)} />
+                      Chat
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox checked={useFormular} onCheckedChange={(v) => setUseFormular(v === true)} />
+                      Formular
+                    </label>
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end">
@@ -489,6 +487,7 @@ export function ProjectDetail({
                     setInfoSaving(true);
                     await updateProject(project.id, {
                       contactPerson,
+                      contactEmail,
                       mainPhone,
                       agentPhone,
                       transferNumber,

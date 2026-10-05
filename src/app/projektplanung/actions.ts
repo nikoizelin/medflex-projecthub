@@ -46,6 +46,7 @@ export async function updateProject(
     ownerId?: string;
     status?: string;
     contactPerson?: string;
+    contactEmail?: string;
     mainPhone?: string;
     agentPhone?: string;
     transferNumber?: string;
@@ -78,6 +79,7 @@ export async function updateProject(
   }
 
   if (data.contactPerson !== undefined) update.contactPerson = data.contactPerson.trim();
+  if (data.contactEmail !== undefined) update.contactEmail = data.contactEmail.trim();
   if (data.mainPhone !== undefined) update.mainPhone = data.mainPhone.trim();
   if (data.agentPhone !== undefined) update.agentPhone = data.agentPhone.trim();
   if (data.transferNumber !== undefined) update.transferNumber = data.transferNumber.trim();
