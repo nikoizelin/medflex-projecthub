@@ -42,6 +42,7 @@ export default async function WidgetPage({
         qa3Label: client.qa3Label, qa3Target: client.qa3Target,
         fachrichtung: client.fachrichtung,
         introText: client.introText,
+        openingHoursLabel: client.openingHoursLabel,
         formSteps: (client.formSteps as unknown as FormType[]) ?? [],
         locations: client.locations.map((l) => ({
           id: l.id,

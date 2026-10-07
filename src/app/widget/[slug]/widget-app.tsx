@@ -45,7 +45,7 @@ export interface WidgetConfig {
   qa1Label: string; qa1Target: string;
   qa2Label: string; qa2Target: string;
   qa3Label: string; qa3Target: string;
-  fachrichtung: string; introText: string;
+  fachrichtung: string; introText: string; openingHoursLabel: string;
   formSteps: FormType[];
   locations: Location[];
   news: { id: string; title: string; body: string }[];
@@ -1219,7 +1219,7 @@ function HomeTab({ config, location, onOpenForm, onOpenChat }: {
       {location && (location.openingHoursText || location.openingHours.some((h) => !h.isClosed)) && (
         <div>
           <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
-            <Clock className="size-3.5" /> Öffnungszeiten
+            <Clock className="size-3.5" /> {config.openingHoursLabel || "Öffnungszeiten"}
             {location.name !== "Hauptstandort" && <span className="text-gray-400">— {location.name}</span>}
           </div>
           {location.openingHoursText ? (
@@ -1273,9 +1273,9 @@ function HomeTab({ config, location, onOpenForm, onOpenChat }: {
 
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
-function WidgetPanel({ config, location, onClose, initialTab, contact, setContact }: {
+function WidgetPanel({ config, location, onClose, onChangeLocation, initialTab, contact, setContact }: {
   config: WidgetConfig; location: Location | null;
-  onClose: () => void; initialTab: PanelTab;
+  onClose: () => void; onChangeLocation: () => void; initialTab: PanelTab;
   contact: ContactData; setContact: (d: ContactData) => void;
 }) {
   const [activeTab, setActiveTab] = useState<PanelTab>(initialTab);
@@ -1297,6 +1297,13 @@ function WidgetPanel({ config, location, onClose, initialTab, contact, setContac
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-gray-900">{config.widgetTitle}</p>
           {config.widgetSubtitle && <p className="truncate text-xs text-gray-500">{config.widgetSubtitle}</p>}
+          {config.locations.length > 1 && location && (
+            <button onClick={onChangeLocation} className="mt-0.5 flex max-w-full items-center gap-1 text-xs text-gray-500 hover:text-gray-800">
+              <MapPin className="size-3 shrink-0" />
+              <span className="truncate">{location.name}</span>
+              <span className="shrink-0 underline">wechseln</span>
+            </button>
+          )}
         </div>
         <button onClick={onClose} className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
           <X className="size-4" />
@@ -1440,6 +1447,7 @@ export function WidgetApp({ config }: { config: WidgetConfig }) {
             config={config}
             location={selectedLocation}
             onClose={() => setView("collapsed")}
+            onChangeLocation={() => setLocationSelected(false)}
             initialTab={initialTab}
             contact={contact}
             setContact={setContact}

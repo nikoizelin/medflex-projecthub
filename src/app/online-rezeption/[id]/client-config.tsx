@@ -26,6 +26,7 @@ export interface ClientData {
   qa3Label: string; qa3Target: string;
   fachrichtung: string;
   introText: string;
+  openingHoursLabel: string;
   formSteps: FormType[];
   locations: {
     id: string; name: string; address: string; phone: string;

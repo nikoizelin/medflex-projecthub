@@ -59,6 +59,7 @@ export function TabStartseite({ client }: { client: ClientData }) {
   const [form, setForm] = useState({
     fachrichtung: client.fachrichtung,
     introText: client.introText,
+    openingHoursLabel: client.openingHoursLabel,
   });
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -96,6 +97,17 @@ export function TabStartseite({ client }: { client: ClientData }) {
               onChange={(e) => { setForm((f) => ({ ...f, introText: e.target.value })); setSaved(false); }}
               className="mt-1"
             />
+          </div>
+          <div>
+            <Label htmlFor="openingHoursLabel">Bezeichnung der Öffnungszeiten</Label>
+            <Input
+              id="openingHoursLabel"
+              value={form.openingHoursLabel}
+              placeholder="Öffnungszeiten"
+              onChange={(e) => { setForm((f) => ({ ...f, openingHoursLabel: e.target.value })); setSaved(false); }}
+              className="mt-1"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Überschrift im Widget, z. B. «Sprechzeiten» oder «Telefonzeiten».</p>
           </div>
         </div>
         <Button className="mt-3" onClick={save} disabled={pending}>

@@ -7,6 +7,7 @@ import { createNotification } from "@/lib/notifications";
 import {
   PALETTE,
   baseChecklist,
+  categoryForOrder,
   calculateSchedule,
   computeDeadline,
 } from "@/lib/schedule";
@@ -30,7 +31,7 @@ export async function createProject(formData: FormData) {
       color,
       ownerId,
       checklist: {
-        create: baseChecklist.map((label, i) => ({ label, order: i, checked: false })),
+        create: baseChecklist.map((label, i) => ({ label, order: i, checked: false, category: categoryForOrder(i) })),
       },
     },
   });
@@ -181,13 +182,13 @@ export async function toggleChecklistItem(
   revalidatePath(`/projektplanung/projekte/${projectId}`);
 }
 
-export async function addChecklistItem(projectId: string, label: string) {
+export async function addChecklistItem(projectId: string, label: string, category: string) {
   const trimmed = label.trim();
   if (!trimmed) return;
 
   const count = await prisma.checklistItem.count({ where: { projectId } });
   await prisma.checklistItem.create({
-    data: { projectId, label: trimmed, order: count, checked: false },
+    data: { projectId, label: trimmed, order: count, checked: false, category },
   });
 
   await syncProjectStatusToChecklist(projectId);
@@ -270,10 +271,17 @@ export async function createProjectComment(projectId: string, message: string) {
   revalidatePath(`/projektplanung/projekte/${projectId}`);
 }
 
+// Sortiert nur innerhalb einer Kategorie: die vorhandenen order-Werte werden neu auf die Punkte verteilt
 export async function reorderChecklistItems(projectId: string, orderedIds: string[]) {
+  const items = await prisma.checklistItem.findMany({
+    where: { projectId, id: { in: orderedIds } },
+    select: { order: true },
+  });
+  if (items.length !== orderedIds.length) return;
+  const slots = items.map((i) => i.order).sort((a, b) => a - b);
   await Promise.all(
     orderedIds.map((id, index) =>
-      prisma.checklistItem.update({ where: { id }, data: { order: index } })
+      prisma.checklistItem.update({ where: { id }, data: { order: slots[index] } })
     )
   );
   revalidatePath(`/projektplanung/projekte/${projectId}`);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { Activity, CalendarRange, FlaskConical, GripVertical, ListChecks, Pencil, Plus } from "lucide-react";
+import { Activity, CalendarRange, ChevronDown, ChevronRight, FlaskConical, GripVertical, ListChecks, Pencil, Plus, X } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -78,6 +78,55 @@ interface ChecklistItem {
   label: string;
   checked: boolean;
   order: number;
+  category: string;
+}
+
+// Mehrere Werte werden in der DB als Zeilenumbruch-getrennter String gespeichert
+const splitMulti = (s: string | null) => {
+  const parts = (s ?? "").split("\n");
+  return parts.length ? parts : [""];
+};
+const joinMulti = (a: string[]) => a.map((v) => v.trim()).filter(Boolean).join("\n");
+
+function MultiInput({
+  label, values, onChange, placeholder, type = "text", addLabel,
+}: {
+  label: string; values: string[]; onChange: (v: string[]) => void;
+  placeholder: string; type?: string; addLabel: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label>{label}</Label>
+      {values.map((v, i) => (
+        <div key={i} className="flex gap-1.5">
+          <Input
+            type={type}
+            value={v}
+            placeholder={placeholder}
+            onChange={(e) => onChange(values.map((x, j) => (j === i ? e.target.value : x)))}
+          />
+          {values.length > 1 && (
+            <Button
+              type="button" variant="ghost" size="icon"
+              className="shrink-0 text-muted-foreground"
+              aria-label="Entfernen"
+              onClick={() => onChange(values.filter((_, j) => j !== i))}
+            >
+              <X className="size-4" />
+            </Button>
+          )}
+        </div>
+      ))}
+      <Button
+        type="button" variant="ghost" size="sm"
+        className="w-fit gap-1 px-2 text-muted-foreground"
+        onClick={() => onChange([...values, ""])}
+      >
+        <Plus className="size-3.5" />
+        {addLabel}
+      </Button>
+    </div>
+  );
 }
 
 interface UserItem {
@@ -108,6 +157,23 @@ interface Project {
   comments: ProjectComment[];
   monitoringAlerts: MonitoringAlert[];
 }
+
+// value = bereits gespeicherter Wert (unverändert), label = angezeigter Softwarename
+const PIS_OPTIONS = [
+  { value: "Aeskulap", label: "Axenita" },
+  { value: "Doctolib", label: "Doctolib" },
+  { value: "Vitodata", label: "Vitomed" },
+  { value: "Winmedical", label: "WinMed" },
+  { value: "curaMed", label: "curaMed" },
+  { value: "tomedo", label: "tomedo" },
+  { value: "Swiss-MR", label: "Swiss-MR" },
+  { value: "MediCloud Med", label: "MediCloud Med" },
+  { value: "amétiq siMed", label: "amétiq siMed" },
+  { value: "Sonstiges", label: "Sonstiges" },
+];
+
+const catOf = (c: ChecklistItem) =>
+  (PHASE_NAMES as readonly string[]).includes(c.category) ? c.category : PHASE_NAMES[0];
 
 // ── Sortable checklist item ────────────────────────────────────────────────
 
@@ -171,20 +237,24 @@ export function ProjectDetail({
     project.startDate ? project.startDate.slice(0, 10) : ""
   );
   const [newItem, setNewItem] = useState("");
+  const [newCategory, setNewCategory] = useState<string>(
+    PHASE_NAMES[getActivePhaseIndex(project.checklist)]
+  );
+  const [openCats, setOpenCats] = useState<Record<string, boolean>>({});
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState(project.name);
   const [ownerId, setOwnerId] = useState(project.ownerId);
   const [ownerName, setOwnerName] = useState(project.ownerName);
   const [color, setColor] = useState(project.color);
 
-  const [contactPerson, setContactPerson] = useState(project.contactPerson ?? "");
-  const [contactEmail, setContactEmail] = useState(project.contactEmail ?? "");
+  const [contactPersons, setContactPersons] = useState(splitMulti(project.contactPerson));
+  const [contactEmails, setContactEmails] = useState(splitMulti(project.contactEmail));
   const [mainPhone, setMainPhone] = useState(project.mainPhone ?? "");
   const [agentPhone, setAgentPhone] = useState(project.agentPhone ?? "");
   const [transferNumber, setTransferNumber] = useState(project.transferNumber ?? "");
   const [useChat, setUseChat] = useState(project.useChat);
   const [useFormular, setUseFormular] = useState(project.useFormular);
-  const [pisSystem, setPisSystem] = useState(project.pisSystem ?? "");
+  const [pisSystem, setPisSystem] = useState(project.pisSystem === "Axon" ? "Aeskulap" : (project.pisSystem ?? ""));
   const [infoSaving, setInfoSaving] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -243,23 +313,40 @@ export function ProjectDetail({
     );
   };
 
+  // Drag & Drop nur innerhalb derselben Kategorie; die order-Werte der Kategorie werden neu verteilt
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = checklist.findIndex((c) => c.id === active.id);
-    const newIndex = checklist.findIndex((c) => c.id === over.id);
-    const reordered = arrayMove(checklist, oldIndex, newIndex).map((item, i) => ({
-      ...item,
-      order: i,
-    }));
+    const a = checklist.find((c) => c.id === active.id);
+    const o = checklist.find((c) => c.id === over.id);
+    if (!a || !o || catOf(a) !== catOf(o)) return;
+
+    const group = checklist.filter((c) => catOf(c) === catOf(a)).sort((x, y) => x.order - y.order);
+    const moved = arrayMove(
+      group,
+      group.findIndex((c) => c.id === a.id),
+      group.findIndex((c) => c.id === o.id)
+    );
+    const reordered = moved.map((item, i) => ({ ...item, order: group[i].order }));
+    const merged = checklist.map((c) => reordered.find((r) => r.id === c.id) ?? c);
 
     startTransition(async () => {
-      applyOptimisticChecklist({ type: "reorder", items: reordered });
-      await reorderChecklistItems(
-        project.id,
-        reordered.map((c) => c.id)
-      );
+      applyOptimisticChecklist({ type: "reorder", items: merged });
+      await reorderChecklistItems(project.id, moved.map((c) => c.id));
+    });
+  };
+
+  const addItem = () => {
+    const value = newItem.trim();
+    if (!value) return;
+    setNewItem("");
+    startTransition(async () => {
+      applyOptimisticChecklist({
+        type: "add",
+        item: { id: `temp-${Date.now()}`, label: value, checked: false, order: checklist.length, category: newCategory },
+      });
+      await addChecklistItem(project.id, value, newCategory);
     });
   };
 
@@ -393,27 +480,23 @@ export function ProjectDetail({
           <div className="rounded-lg border bg-background p-3.5">
             <p className="mb-3 text-sm font-medium">Projektinfos</p>
             <div className="flex flex-col gap-3">
-              {/* Kontaktperson + Email */}
+              {/* Kontaktpersonen + E-Mails */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="info-contact">Kontaktperson</Label>
-                  <Input
-                    id="info-contact"
-                    value={contactPerson}
-                    onChange={(e) => setContactPerson(e.target.value)}
-                    placeholder="Name der Kontaktperson"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="info-email">E-Mail</Label>
-                  <Input
-                    id="info-email"
-                    type="email"
-                    value={contactEmail}
-                    onChange={(e) => setContactEmail(e.target.value)}
-                    placeholder="kontakt@praxis.ch"
-                  />
-                </div>
+                <MultiInput
+                  label="Kontaktpersonen"
+                  values={contactPersons}
+                  onChange={setContactPersons}
+                  placeholder="Name der Kontaktperson"
+                  addLabel="Name hinzufügen"
+                />
+                <MultiInput
+                  label="E-Mail-Adressen"
+                  values={contactEmails}
+                  onChange={setContactEmails}
+                  placeholder="kontakt@praxis.ch"
+                  type="email"
+                  addLabel="E-Mail hinzufügen"
+                />
               </div>
               {/* 3 Telefonnummern */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -445,38 +528,34 @@ export function ProjectDetail({
                   />
                 </div>
               </div>
-              {/* PIS + Kanalauswahl */}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="flex flex-col gap-1.5">
-                  <Label>Praxisinformationssystem (PIS)</Label>
-                  <Select value={pisSystem} onValueChange={(v) => setPisSystem(v ?? "")}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="PIS wählen…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[
-                        "Aeskulap","Axon","Carecenter","Doctolib","e.Dossier",
-                        "iMed","IsyMed","KG-System","mediDOC","Mediwin","Möve",
-                        "Nexus Pratique","Officemed","Opale","synapze","TurboMed",
-                        "Vitodata","Winmedical","Sonstiges",
-                      ].map((pis) => (
-                        <SelectItem key={pis} value={pis}>{pis}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Kanalauswahl</Label>
-                  <div className="flex flex-wrap gap-4 pt-1">
-                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                      <Checkbox checked={useChat} onCheckedChange={(v) => setUseChat(v === true)} />
-                      Chat
-                    </label>
-                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                      <Checkbox checked={useFormular} onCheckedChange={(v) => setUseFormular(v === true)} />
-                      Formular
-                    </label>
-                  </div>
+              {/* PIS */}
+              <div className="flex flex-col gap-1.5 sm:max-w-sm">
+                <Label>Praxisinformationssystem (PIS)</Label>
+                <Select value={pisSystem} onValueChange={(v) => setPisSystem(v ?? "")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="PIS wählen…">
+                      {PIS_OPTIONS.find((o) => o.value === pisSystem)?.label ?? (pisSystem || undefined)}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="min-w-72">
+                    {PIS_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Kanalauswahl */}
+              <div className="flex flex-col gap-2">
+                <Label>Kanalauswahl</Label>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Checkbox checked={useChat} onCheckedChange={(v) => setUseChat(v === true)} />
+                    Chat
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Checkbox checked={useFormular} onCheckedChange={(v) => setUseFormular(v === true)} />
+                    Formular
+                  </label>
                 </div>
               </div>
               <div className="flex justify-end">
@@ -486,8 +565,8 @@ export function ProjectDetail({
                   onClick={async () => {
                     setInfoSaving(true);
                     await updateProject(project.id, {
-                      contactPerson,
-                      contactEmail,
+                      contactPerson: joinMulti(contactPersons),
+                      contactEmail: joinMulti(contactEmails),
                       mainPhone,
                       agentPhone,
                       transferNumber,
@@ -593,64 +672,90 @@ export function ProjectDetail({
               collisionDetection={closestCenter}
               onDragEnd={handleDragEnd}
             >
-              <SortableContext
-                items={checklist.map((c) => c.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="flex flex-col gap-1.5 text-sm">
-                  {checklist.map((item) => (
-                    <SortableChecklistItem
-                      key={item.id}
-                      item={item}
-                      onToggle={(id, checked) => {
-                        startTransition(async () => {
-                          applyOptimisticChecklist({ type: "toggle", id, checked });
-                          await toggleChecklistItem(id, project.id, checked);
-                        });
-                      }}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
+              <div className="flex flex-col gap-2">
+                {PHASE_NAMES.map((cat, catIndex) => {
+                  const items = checklist
+                    .filter((c) => catOf(c) === cat)
+                    .sort((x, y) => x.order - y.order);
+                  if (items.length === 0) return null;
+                  const done = items.filter((c) => c.checked).length;
+                  const complete = done === items.length;
+                  const isOpen = openCats[cat] ?? !complete;
+                  const pct = Math.round((done / items.length) * 100);
+                  return (
+                    <div key={cat} className="rounded-md border">
+                      <button
+                        type="button"
+                        onClick={() => setOpenCats((o) => ({ ...o, [cat]: !isOpen }))}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left"
+                      >
+                        {isOpen ? (
+                          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                        )}
+                        <span className="text-sm font-medium">{cat}</span>
+                        {catIndex === activePhase && (
+                          <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-600 dark:text-blue-400">
+                            Aktuell
+                          </span>
+                        )}
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {done}/{items.length}
+                        </span>
+                        <span className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
+                          <span
+                            className={cn("block h-full rounded-full", complete ? "bg-emerald-500" : "bg-blue-500")}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </span>
+                      </button>
+                      {isOpen && (
+                        <SortableContext
+                          items={items.map((c) => c.id)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <div className="flex flex-col gap-1.5 border-t px-3 py-2.5 text-sm">
+                            {items.map((item) => (
+                              <SortableChecklistItem
+                                key={item.id}
+                                item={item}
+                                onToggle={(id, checked) => {
+                                  startTransition(async () => {
+                                    applyOptimisticChecklist({ type: "toggle", id, checked });
+                                    await toggleChecklistItem(id, project.id, checked);
+                                  });
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </SortableContext>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </DndContext>
 
-            <div className="mt-2.5 flex gap-2">
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              <Select value={newCategory} onValueChange={(v) => v && setNewCategory(v)}>
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PHASE_NAMES.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
                 placeholder="Eigenen Punkt hinzufügen..."
                 value={newItem}
                 onChange={(e) => setNewItem(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    const value = newItem.trim();
-                    if (!value) return;
-                    setNewItem("");
-                    startTransition(async () => {
-                      applyOptimisticChecklist({
-                        type: "add",
-                        item: { id: `temp-${Date.now()}`, label: value, checked: false, order: total },
-                      });
-                      await addChecklistItem(project.id, value);
-                    });
-                  }
-                }}
-                className="flex-1"
+                onKeyDown={(e) => e.key === "Enter" && addItem()}
+                className="min-w-48 flex-1"
               />
-              <Button
-                size="icon"
-                variant="outline"
-                onClick={() => {
-                  const value = newItem.trim();
-                  if (!value) return;
-                  setNewItem("");
-                  startTransition(async () => {
-                    applyOptimisticChecklist({
-                      type: "add",
-                      item: { id: `temp-${Date.now()}`, label: value, checked: false, order: total },
-                    });
-                    await addChecklistItem(project.id, value);
-                  });
-                }}
-              >
+              <Button size="icon" variant="outline" onClick={addItem}>
                 <Plus className="size-4" />
               </Button>
             </div>

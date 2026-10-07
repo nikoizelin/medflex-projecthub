@@ -744,12 +744,12 @@ export function AnfragenTable({
                     <div className="grid grid-cols-[160px_1fr] gap-3 border-t py-2.5">
                       <p className="text-xs font-medium text-muted-foreground">Link</p>
                       <a
-                        href={selectedEntry.entry.linkAnfrage}
+                        href={selectedEntry.entry.linkAnfrage.replace("/mitarbeiter/", "/arzt/")}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                       >
-                        {selectedEntry.entry.linkAnfrage}
+                        {selectedEntry.entry.linkAnfrage.replace("/mitarbeiter/", "/arzt/")}
                         <ExternalLink className="size-3" />
                       </a>
                     </div>

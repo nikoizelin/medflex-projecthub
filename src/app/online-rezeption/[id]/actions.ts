@@ -111,7 +111,7 @@ export async function updateOpeningHours(
 // ─── Startseite ───────────────────────────────────────────────────────────────
 
 export async function updateStartseite(id: string, data: {
-  fachrichtung: string; introText: string;
+  fachrichtung: string; introText: string; openingHoursLabel: string;
 }) {
   await prisma.receptionClient.update({ where: { id }, data });
   revalidatePath(path(id));

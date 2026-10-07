@@ -122,7 +122,7 @@ function entryTable(entry: ExportEntry): Table {
   } else {
     rows.push(row("Beschreibung des Problems", entry.beschreibungProblem));
     if (kat !== "medflex-app" && entry.linkAnfrage) {
-      rows.push(row("Link der Anfrage", entry.linkAnfrage));
+      rows.push(row("Link der Anfrage", entry.linkAnfrage.replace("/mitarbeiter/", "/arzt/")));
     }
     if (entry.fehlerhaftesVerhalten) rows.push(row("Fehlerhaftes Verhalten", entry.fehlerhaftesVerhalten));
     if (entry.erwartesVerhalten) rows.push(row("Erwartetes Verhalten", entry.erwartesVerhalten));

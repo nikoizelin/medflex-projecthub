@@ -203,6 +203,15 @@ export const PHASE_NAMES = [
  */
 export const PHASE_TRIGGER_ORDERS: (number | null)[] = [null, 4, 5, 13, 21, 25];
 
+/** Kategorie (Phasenname) eines Standard-Checklistenpunkts anhand seiner `order` */
+export function categoryForOrder(order: number): string {
+  let idx = 0;
+  for (let i = 1; i < PHASE_TRIGGER_ORDERS.length; i++) {
+    if (order >= PHASE_TRIGGER_ORDERS[i]!) idx = i;
+  }
+  return PHASE_NAMES[idx];
+}
+
 /**
  * Ermittelt den Index der aktiven Phase anhand der abgehakten Checklisten-Punkte
  * (gebunden an feste `order`-Werte, unabhängig von der Gesamtzahl der Punkte).

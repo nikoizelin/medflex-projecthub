@@ -38,7 +38,7 @@ export default async function ProjectDetailPage({
       ownerId: true,
       owner: { select: { name: true } },
       checklist: {
-        select: { id: true, label: true, checked: true, order: true },
+        select: { id: true, label: true, checked: true, order: true, category: true },
         orderBy: { order: "asc" },
       },
       testingEntries: {
@@ -116,6 +116,7 @@ export default async function ProjectDetailPage({
             label: c.label,
             checked: c.checked,
             order: c.order,
+            category: c.category,
           })),
           testingEntries: project.testingEntries.map((t) => ({
             id: t.id,
