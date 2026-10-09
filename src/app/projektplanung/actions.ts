@@ -54,6 +54,13 @@ export async function updateProject(
     useChat?: boolean;
     useFormular?: boolean;
     pisSystem?: string;
+    elevenLabsAgentId?: string;
+    phoneProviderName?: string;
+    phoneProviderPhone?: string;
+    phoneProviderEmail?: string;
+    websiteName?: string;
+    websitePhone?: string;
+    websiteEmail?: string;
   }
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,6 +94,19 @@ export async function updateProject(
   if (data.useChat !== undefined) update.useChat = data.useChat;
   if (data.useFormular !== undefined) update.useFormular = data.useFormular;
   if (data.pisSystem !== undefined) update.pisSystem = data.pisSystem;
+
+  if (data.elevenLabsAgentId !== undefined) {
+    const id = data.elevenLabsAgentId.trim();
+    if (id && !/^[A-Za-z0-9_-]{1,100}$/.test(id)) return;
+    update.elevenLabsAgentId = id || null;
+  }
+  for (const key of [
+    "phoneProviderName", "phoneProviderPhone", "phoneProviderEmail",
+    "websiteName", "websitePhone", "websiteEmail",
+  ] as const) {
+    const v = data[key];
+    if (v !== undefined) update[key] = v.trim().slice(0, 300) || null;
+  }
 
   if (Object.keys(update).length === 0) return;
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
-import { CheckCircle2, ImagePlus, Info, Loader2, Plus, Trash2, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, ImagePlus, Info, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,9 @@ import {
 } from "@/components/ui/select";
 import { submitSupportRequest, type ContactInfo, type ChangeRequestEntryInput } from "../actions";
 import { KATEGORIE_OPTIONS } from "@/lib/constants";
+import { validateRequest } from "@/lib/support-validation";
+
+const DATENSCHUTZ_URL = "https://medflex-schweiz.ch/datenschutz";
 
 const KATEGORIE_BADGE: Record<string, string> = {
   telefonassistent: "bg-blue-500/10 text-blue-700",
@@ -360,6 +363,9 @@ export function ChangeRequestForm() {
   });
   const [entries, setEntries] = useState<EntryState[]>([emptyEntry()]);
   const [submitted, setSubmitted] = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(true);
+  const [consent, setConsent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const updateContact = (patch: Partial<ContactInfo>) =>
@@ -385,6 +391,18 @@ export function ChangeRequestForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    const validationError = validateRequest(contact, entries, consent);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    if (entries.some((en) => en.screenshots.some((ss) => !ss.file.type.startsWith("image/")))) {
+      setError("Screenshots: Nur Bilddateien sind erlaubt.");
+      return;
+    }
+
     startTransition(async () => {
       const preparedEntries: ChangeRequestEntryInput[] = await Promise.all(
         entries.map(async (entry) => {
@@ -407,20 +425,39 @@ export function ChangeRequestForm() {
         })
       );
       const hp = (document.getElementById("_hp_name") as HTMLInputElement | null)?.value ?? "";
-      await submitSupportRequest(contact, preparedEntries, hp);
-      setSubmitted(true);
+      try {
+        const result = await submitSupportRequest(contact, preparedEntries, hp, consent);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        setConfirmationSent(result.confirmationSent);
+        setSubmitted(true);
+      } catch {
+        setError("Die Anfrage konnte nicht übermittelt werden. Bitte prüfen Sie Ihre Verbindung und versuchen Sie es erneut.");
+      }
     });
   };
 
   if (submitted) {
     return (
-      <div className="flex flex-col items-center gap-4 rounded-xl border bg-background py-16 text-center shadow-sm">
+      <div className="flex flex-col items-center gap-4 rounded-2xl border border-[#dbdbdb] bg-white px-6 py-16 text-center shadow-sm">
         <CheckCircle2 className="size-12 text-emerald-500" />
         <div>
           <p className="text-lg font-semibold">Anfrage erfolgreich übermittelt</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Ihre Anfrage wurde gespeichert. Eine Bestätigung wurde an{" "}
-            <span className="font-medium">{contact.email}</span> gesendet.
+            {confirmationSent ? (
+              <>
+                Ihre Anfrage wurde gespeichert. Eine Bestätigung wurde an{" "}
+                <span className="font-medium">{contact.email}</span> gesendet.
+              </>
+            ) : (
+              <>
+                Ihre Anfrage wurde gespeichert. Die Bestätigungs-E-Mail an{" "}
+                <span className="font-medium">{contact.email}</span> konnte jedoch nicht zugestellt
+                werden. Wir melden uns bei Ihnen.
+              </>
+            )}
           </p>
         </div>
         <Button
@@ -429,6 +466,7 @@ export function ChangeRequestForm() {
             setSubmitted(false);
             setContact({ kontaktperson: "", praxisKunde: "", email: "" });
             setEntries([emptyEntry()]);
+            setConsent(false);
           }}
         >
           Neue Anfrage erstellen
@@ -442,9 +480,9 @@ export function ChangeRequestForm() {
       {/* Honeypot — verstecktes Feld für Bot-Erkennung */}
       <input id="_hp_name" name="_hp_name" type="text" tabIndex={-1} aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", overflow: "hidden" }} defaultValue="" autoComplete="off" />
       {/* Kontaktbereich */}
-      <div className="rounded-xl border bg-background shadow-sm">
-        <div className="border-b px-5 py-3">
-          <p className="text-sm font-semibold">Kontaktangaben</p>
+      <div className="rounded-2xl border border-[#dbdbdb] bg-white shadow-sm">
+        <div className="rounded-t-2xl border-b border-[#dbdbdb] bg-[#ebf5ff] px-5 py-3">
+          <p className="text-sm font-semibold text-[#064b91]">Kontaktangaben</p>
           <p className="text-xs text-muted-foreground">
             Diese Angaben gelten für alle Einträge dieser Anfrage.
           </p>
@@ -480,8 +518,8 @@ export function ChangeRequestForm() {
 
       {/* Einträge */}
       {entries.map((entry, i) => (
-        <div key={i} className="relative rounded-xl border bg-background shadow-sm">
-          <div className="flex items-center justify-between border-b px-5 py-3">
+        <div key={i} className="relative rounded-2xl border border-[#dbdbdb] bg-white shadow-sm">
+          <div className="flex items-center justify-between rounded-t-2xl border-b border-[#dbdbdb] bg-[#ebf5ff] px-5 py-3">
             <div className="flex items-center gap-2">
               <span className="flex size-6 items-center justify-center rounded-full bg-[#064b91] text-[11px] font-semibold text-white">
                 {i + 1}
@@ -552,14 +590,47 @@ export function ChangeRequestForm() {
         type="button"
         variant="outline"
         onClick={addEntry}
-        className="w-full border-dashed"
+        className="w-full rounded-xl border-dashed border-[#064b91]/40 text-[#064b91] hover:bg-[#ebf5ff]"
       >
         <Plus className="size-4" />
         Weiterer Eintrag
       </Button>
 
+      <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-[#dbdbdb] bg-white p-4 text-sm">
+        <input
+          type="checkbox"
+          checked={consent}
+          onChange={(e) => setConsent(e.target.checked)}
+          className="mt-0.5 size-4 shrink-0 accent-[#064b91]"
+          required
+        />
+        <span>
+          Ich habe die{" "}
+          <a
+            href={DATENSCHUTZ_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-[#064b91] underline"
+          >
+            Datenschutzerklärung
+          </a>{" "}
+          gelesen und bin mit der Bearbeitung meiner Angaben zur Beantwortung dieser Anfrage
+          einverstanden. <span className="text-destructive">*</span>
+        </span>
+      </label>
+
+      {error && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3.5 text-sm text-destructive"
+        >
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       <div className="flex justify-end">
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending} className="rounded-lg px-6">
           {isPending ? (
             <>
               <Loader2 className="size-4 animate-spin" />

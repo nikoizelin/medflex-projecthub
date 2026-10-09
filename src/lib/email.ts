@@ -3,6 +3,9 @@ import { KATEGORIE_LABEL } from "./constants";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
+const esc = (v: string) =>
+  v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
 const FROM = "MedFlex ProjektHub <no-reply@medflex-schweiz.ch>";
 
 export async function sendTicketAssignmentEmail({
@@ -198,16 +201,16 @@ export async function sendSupportAssignmentEmail({
           <p style="margin:4px 0 0;color:#93c5fd;font-size:13px;">Support – Kundenzuweisung</p>
         </td></tr>
         <tr><td style="padding:32px;">
-          <p style="margin:0 0 8px;font-size:15px;color:#09090b;">Hallo ${assigneeName},</p>
+          <p style="margin:0 0 8px;font-size:15px;color:#09090b;">Hallo ${esc(assigneeName)},</p>
           <p style="margin:0 0 24px;font-size:14px;color:#52525b;">Dir wurde eine Kunden-Anfrage zugewiesen.</p>
           <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;border-radius:8px;padding:20px;margin-bottom:24px;">
             <tr><td style="padding-bottom:10px;">
               <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;color:#71717a;">Praxis / Kunde</p>
-              <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#09090b;">${praxisKunde}</p>
+              <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#09090b;">${esc(praxisKunde)}</p>
             </td></tr>
             <tr><td style="padding-bottom:10px;">
               <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;color:#71717a;">Kontaktperson</p>
-              <p style="margin:4px 0 0;font-size:14px;color:#3f3f46;">${kontaktperson}</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#3f3f46;">${esc(kontaktperson)}</p>
             </td></tr>
             <tr><td style="padding-bottom:10px;">
               <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;color:#71717a;">Kategorie</p>
@@ -219,7 +222,7 @@ export async function sendSupportAssignmentEmail({
             </td></tr>
             <tr><td>
               <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;color:#71717a;">Beschreibung</p>
-              <p style="margin:4px 0 0;font-size:14px;color:#3f3f46;white-space:pre-wrap;">${beschreibungProblem}</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#3f3f46;white-space:pre-wrap;">${esc(beschreibungProblem)}</p>
             </td></tr>
           </table>
           <p style="margin:0;font-size:13px;color:#71717a;">Priorität: <span style="color:#09090b;font-weight:500;">${prioritaet.charAt(0).toUpperCase() + prioritaet.slice(1)}</span></p>
@@ -260,7 +263,7 @@ export async function sendSupportInternalNotificationEmail({
       return `
     <tr><td style="padding:12px 0;border-top:1px solid #e4e4e7;">
       <p style="margin:0;font-size:13px;font-weight:600;color:#09090b;">${i + 1}. ${KATEGORIE_LABEL[e.kategorie] ?? e.kategorie} · ${datumFormatted}</p>
-      <p style="margin:6px 0 0;font-size:13px;color:#52525b;white-space:pre-wrap;">${e.beschreibungProblem}</p>
+      <p style="margin:6px 0 0;font-size:13px;color:#52525b;white-space:pre-wrap;">${esc(e.beschreibungProblem)}</p>
     </td></tr>`;
     })
     .join("");
@@ -280,15 +283,15 @@ export async function sendSupportInternalNotificationEmail({
           <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;border-radius:8px;padding:20px;margin-bottom:24px;">
             <tr><td style="padding-bottom:10px;">
               <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;color:#71717a;">Praxis / Kunde</p>
-              <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#09090b;">${praxisKunde}</p>
+              <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#09090b;">${esc(praxisKunde)}</p>
             </td></tr>
             <tr><td style="padding-bottom:10px;">
               <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;color:#71717a;">Kontaktperson</p>
-              <p style="margin:4px 0 0;font-size:14px;color:#3f3f46;">${contactName}</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#3f3f46;">${esc(contactName)}</p>
             </td></tr>
             <tr><td>
               <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;color:#71717a;">E-Mail</p>
-              <p style="margin:4px 0 0;font-size:14px;color:#3f3f46;"><a href="mailto:${email}" style="color:#064b91;">${email}</a></p>
+              <p style="margin:4px 0 0;font-size:14px;color:#3f3f46;"><a href="mailto:${esc(email)}" style="color:#064b91;">${esc(email)}</a></p>
             </td></tr>
           </table>
           <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#09090b;">Einträge (${entries.length})</p>
@@ -323,7 +326,7 @@ export async function sendSupportConfirmationEmail({
   praxisKunde: string;
   entries: { kategorie: string; beschreibungProblem: string; datum: string }[];
 }) {
-  if (!process.env.RESEND_API_KEY) return;
+  if (!resend) throw new Error("E-Mail-Versand nicht konfiguriert");
 
   const subject = `Ihre Änderungsanfragen wurden übermittelt – ${praxisKunde}`;
 
@@ -334,7 +337,7 @@ export async function sendSupportConfirmationEmail({
     return `
     <tr><td style="padding:12px 0;border-top:1px solid #e4e4e7;">
       <p style="margin:0;font-size:13px;font-weight:600;color:#09090b;">${i + 1}. ${KATEGORIE_LABEL[e.kategorie] ?? e.kategorie} · ${datumFormatted}</p>
-      <p style="margin:6px 0 0;font-size:13px;color:#52525b;white-space:pre-wrap;">${e.beschreibungProblem}</p>
+      <p style="margin:6px 0 0;font-size:13px;color:#52525b;white-space:pre-wrap;">${esc(e.beschreibungProblem)}</p>
     </td></tr>`;
   }).join("");
 
@@ -349,7 +352,7 @@ export async function sendSupportConfirmationEmail({
           <p style="margin:4px 0 0;color:#93c5fd;font-size:13px;">Bestätigung Änderungsanfrage</p>
         </td></tr>
         <tr><td style="padding:32px;">
-          <p style="margin:0 0 8px;font-size:15px;color:#09090b;">Guten Tag ${contactName},</p>
+          <p style="margin:0 0 8px;font-size:15px;color:#09090b;">Guten Tag ${esc(contactName)},</p>
           <p style="margin:0 0 24px;font-size:14px;color:#52525b;">Vielen Dank für Ihre Anfrage. Wir haben die folgenden Einträge erhalten und werden uns in Kürze bei Ihnen melden.</p>
           <table width="100%" cellpadding="0" cellspacing="0">
             ${entryRows}
@@ -364,5 +367,6 @@ export async function sendSupportConfirmationEmail({
   </table>
 </body></html>`;
 
-  await resend?.emails.send({ from: FROM, to, subject, html });
+  const { error } = await resend.emails.send({ from: FROM, to, subject, html });
+  if (error) throw new Error(error.message);
 }

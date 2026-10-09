@@ -359,7 +359,8 @@ export function AnfragenTable({
   const renderEntryRow = (entry: ChangeEntry, sr: SupportRequestData, showControls = true) => (
     <tr
       key={entry.id}
-      className={cn("hover:bg-muted/10", checkedEntryIds.has(entry.id) && "bg-muted/10")}
+      className={cn("cursor-pointer hover:bg-muted/20", checkedEntryIds.has(entry.id) && "bg-muted/10")}
+      onClick={() => setSelectedEntry({ entry, sr })}
     >
       {showControls && (
         <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>

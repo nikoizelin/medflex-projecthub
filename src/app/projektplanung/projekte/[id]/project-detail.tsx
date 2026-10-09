@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { Activity, CalendarRange, ChevronDown, ChevronRight, FlaskConical, GripVertical, ListChecks, Pencil, Plus, X } from "lucide-react";
+import { Activity, CalendarRange, ChevronDown, ChevronRight, ExternalLink, FlaskConical, GripVertical, ListChecks, Pencil, Plus, X } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -49,7 +49,6 @@ import {
   reorderChecklistItems,
 } from "../../actions";
 import { TestingProtocol, type TestingEntry } from "./testing-protocol";
-import { AgentTestSection } from "./agent-test";
 import { ProjectComments, type ProjectComment } from "./project-comments";
 import { MonitoringTab, type MonitoringAlert } from "./monitoring-tab";
 
@@ -152,6 +151,13 @@ interface Project {
   useChat: boolean;
   useFormular: boolean;
   pisSystem: string | null;
+  elevenLabsAgentId: string | null;
+  phoneProviderName: string | null;
+  phoneProviderPhone: string | null;
+  phoneProviderEmail: string | null;
+  websiteName: string | null;
+  websitePhone: string | null;
+  websiteEmail: string | null;
   checklist: ChecklistItem[];
   testingEntries: TestingEntry[];
   comments: ProjectComment[];
@@ -255,7 +261,18 @@ export function ProjectDetail({
   const [useChat, setUseChat] = useState(project.useChat);
   const [useFormular, setUseFormular] = useState(project.useFormular);
   const [pisSystem, setPisSystem] = useState(project.pisSystem === "Axon" ? "Aeskulap" : (project.pisSystem ?? ""));
+  const [phoneProviderName, setPhoneProviderName] = useState(project.phoneProviderName ?? "");
+  const [phoneProviderPhone, setPhoneProviderPhone] = useState(project.phoneProviderPhone ?? "");
+  const [phoneProviderEmail, setPhoneProviderEmail] = useState(project.phoneProviderEmail ?? "");
+  const [websiteName, setWebsiteName] = useState(project.websiteName ?? "");
+  const [websitePhone, setWebsitePhone] = useState(project.websitePhone ?? "");
+  const [websiteEmail, setWebsiteEmail] = useState(project.websiteEmail ?? "");
   const [infoSaving, setInfoSaving] = useState(false);
+
+  const [agentId, setAgentId] = useState(project.elevenLabsAgentId ?? "");
+  const [savedAgentId, setSavedAgentId] = useState(project.elevenLabsAgentId ?? "");
+  const [agentSaving, setAgentSaving] = useState(false);
+  const agentIdValid = /^[A-Za-z0-9_-]{0,100}$/.test(agentId.trim());
 
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(project.name);
@@ -478,8 +495,14 @@ export function ProjectDetail({
         <TabsContent value="zeitplan" className="mt-3.5 flex flex-col gap-3.5">
           {/* ── Projektinfos ──────────────────────────────────────────────── */}
           <div className="rounded-lg border bg-background p-3.5">
-            <p className="mb-3 text-sm font-medium">Projektinfos</p>
+            <p className="mb-1 text-sm font-medium">Projektinfos</p>
             <div className="flex flex-col gap-3">
+              <Tabs defaultValue="allgemein">
+                <TabsList variant="line">
+                  <TabsTrigger value="allgemein">Allgemein</TabsTrigger>
+                  <TabsTrigger value="extern">Extern</TabsTrigger>
+                </TabsList>
+                <TabsContent value="allgemein" className="mt-3 flex flex-col gap-3">
               {/* Kontaktpersonen + E-Mails */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <MultiInput
@@ -558,6 +581,44 @@ export function ProjectDetail({
                   </label>
                 </div>
               </div>
+                </TabsContent>
+                <TabsContent value="extern" className="mt-3 flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs font-medium text-muted-foreground">Telefonanbieter</p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="ext-phone-name">Name</Label>
+                        <Input id="ext-phone-name" value={phoneProviderName} onChange={(e) => setPhoneProviderName(e.target.value)} placeholder="Name Ansprechperson / Anbieter" />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="ext-phone-tel">Telefonnummer</Label>
+                        <Input id="ext-phone-tel" value={phoneProviderPhone} onChange={(e) => setPhoneProviderPhone(e.target.value)} placeholder="+41 xx xxx xx xx" />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="ext-phone-mail">E-Mail</Label>
+                        <Input id="ext-phone-mail" type="email" value={phoneProviderEmail} onChange={(e) => setPhoneProviderEmail(e.target.value)} placeholder="name@anbieter.ch" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs font-medium text-muted-foreground">Website</p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="ext-web-name">Name</Label>
+                        <Input id="ext-web-name" value={websiteName} onChange={(e) => setWebsiteName(e.target.value)} placeholder="Name Ansprechperson / Agentur" />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="ext-web-tel">Telefonnummer</Label>
+                        <Input id="ext-web-tel" value={websitePhone} onChange={(e) => setWebsitePhone(e.target.value)} placeholder="+41 xx xxx xx xx" />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="ext-web-mail">E-Mail</Label>
+                        <Input id="ext-web-mail" type="email" value={websiteEmail} onChange={(e) => setWebsiteEmail(e.target.value)} placeholder="name@agentur.ch" />
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
               <div className="flex justify-end">
                 <Button
                   size="sm"
@@ -573,6 +634,12 @@ export function ProjectDetail({
                       useChat,
                       useFormular,
                       pisSystem: pisSystem || undefined,
+                      phoneProviderName,
+                      phoneProviderPhone,
+                      phoneProviderEmail,
+                      websiteName,
+                      websitePhone,
+                      websiteEmail,
                     });
                     setInfoSaving(false);
                   }}
@@ -763,7 +830,47 @@ export function ProjectDetail({
         </TabsContent>
 
         <TabsContent value="testing" className="mt-3.5 flex flex-col gap-3.5">
-          <AgentTestSection />
+          <div className="rounded-lg border bg-background p-3.5">
+            <p className="mb-3 text-sm font-medium">ElevenLabs Agent</p>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex min-w-64 flex-1 flex-col gap-1.5">
+                <Label htmlFor="agent-id">Agent ID</Label>
+                <Input
+                  id="agent-id"
+                  value={agentId}
+                  onChange={(e) => setAgentId(e.target.value)}
+                  placeholder="agent_…"
+                  aria-invalid={!agentIdValid}
+                />
+              </div>
+              <Button
+                size="sm"
+                disabled={agentSaving || !agentIdValid || agentId.trim() === savedAgentId}
+                onClick={async () => {
+                  setAgentSaving(true);
+                  await updateProject(project.id, { elevenLabsAgentId: agentId.trim() });
+                  setSavedAgentId(agentId.trim());
+                  setAgentSaving(false);
+                }}
+              >
+                {agentSaving ? "Speichern…" : "Speichern"}
+              </Button>
+            </div>
+            {!agentIdValid && (
+              <p className="mt-1.5 text-xs text-destructive">Nur Buchstaben, Zahlen, «_» und «-» erlaubt.</p>
+            )}
+            {savedAgentId && (
+              <a
+                href={`https://eu.residency.elevenlabs.io/app/agents/agents/${encodeURIComponent(savedAgentId)}/tests`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline"
+              >
+                Zu den Elevenlabs Tests
+                <ExternalLink className="size-3.5" />
+              </a>
+            )}
+          </div>
           <div className="rounded-lg border bg-background p-3.5">
             <TestingProtocol
               projectId={project.id}

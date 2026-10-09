@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createNotification } from "@/lib/notifications";
+import { validateRequest } from "@/lib/support-validation";
 
 const VALID_KATEGORIEN = ["telefonassistent", "medflex-app", "featurewunsch", "sonstiges"];
 
@@ -40,13 +41,18 @@ export interface ChangeRequestEntryInput {
   screenshots: ScreenshotInput[];
 }
 
+export type SubmitResult =
+  | { ok: true; confirmationSent: boolean }
+  | { ok: false; error: string };
+
 export async function submitSupportRequest(
   contact: ContactInfo,
-  entries: ChangeRequestEntryInput[],
-  honeypot?: string
-) {
+  rawEntries: ChangeRequestEntryInput[],
+  honeypot: string | undefined,
+  consent: boolean
+): Promise<SubmitResult> {
   // Honeypot: bots fill hidden fields, humans don't
-  if (honeypot) return;
+  if (honeypot) return { ok: true, confirmationSent: false };
 
   // Rate limiting (requires UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN)
   const ratelimit = await getRateLimit();
@@ -54,52 +60,55 @@ export async function submitSupportRequest(
     const h = await headers();
     const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "127.0.0.1";
     const { success } = await ratelimit.limit(ip);
-    if (!success) throw new Error("Zu viele Anfragen. Bitte warte eine Minute.");
+    if (!success) return { ok: false, error: "Zu viele Anfragen. Bitte warten Sie eine Minute." };
   }
 
-  // Server-side validation
-  if (!contact.kontaktperson?.trim() || !contact.praxisKunde?.trim()) return;
-  if (contact.kontaktperson.length > 200 || contact.praxisKunde.length > 200) return;
-  if (contact.email && contact.email.length > 300) return;
-  if (!entries.length || entries.length > 10) return;
+  // Server-side validation (nie dem Client vertrauen)
+  const today = new Date().toISOString().slice(0, 10);
+  const entries = (rawEntries ?? []).map((e) => ({ ...e, datum: e.datum || today }));
+  const validationError = validateRequest(contact, entries, consent === true);
+  if (validationError) return { ok: false, error: validationError };
 
   for (const e of entries) {
-    if (!VALID_KATEGORIEN.includes(e.kategorie)) return;
-    if (!e.beschreibungProblem?.trim() || e.beschreibungProblem.length > 10000) return;
-    if (e.linkAnfrage.length > 500) return;
-    if (e.fehlerhaftesVerhalten.length > 10000) return;
-    if (e.erwartesVerhalten.length > 10000) return;
-    if (e.screenshots.length > 5) return;
+    if (!VALID_KATEGORIEN.includes(e.kategorie)) return { ok: false, error: "Ungültige Kategorie." };
+    if (e.screenshots.length > 5) return { ok: false, error: "Maximal 5 Screenshots pro Eintrag." };
     for (const s of e.screenshots) {
-      if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(s.mimeType)) return;
-      if (s.data.length > 4_000_000) return; // ~3 MB base64
+      if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(s.mimeType)) {
+        return { ok: false, error: "Nur Bilddateien (JPG, PNG, WebP, GIF) sind erlaubt." };
+      }
+      if (s.data.length > 4_000_000) return { ok: false, error: "Ein Screenshot ist zu gross (max. ca. 3 MB)." };
     }
   }
 
-  await prisma.supportRequest.create({
-    data: {
-      kontaktperson: contact.kontaktperson.trim(),
-      praxisKunde: contact.praxisKunde.trim(),
-      email: contact.email.trim(),
-      entries: {
-        create: entries.map((e) => ({
-          datum: new Date(e.datum),
-          kategorie: e.kategorie,
-          beschreibungProblem: e.beschreibungProblem.trim(),
-          linkAnfrage: e.linkAnfrage.trim(),
-          fehlerhaftesVerhalten: e.fehlerhaftesVerhalten.trim(),
-          erwartesVerhalten: e.erwartesVerhalten.trim(),
-          screenshots: {
-            create: e.screenshots.map((s) => ({
-              filename: s.filename,
-              mimeType: s.mimeType,
-              data: s.data,
-            })),
-          },
-        })),
+  try {
+    await prisma.supportRequest.create({
+      data: {
+        kontaktperson: contact.kontaktperson.trim(),
+        praxisKunde: contact.praxisKunde.trim(),
+        email: contact.email.trim(),
+        entries: {
+          create: entries.map((e) => ({
+            datum: new Date(e.datum),
+            kategorie: e.kategorie,
+            beschreibungProblem: e.beschreibungProblem.trim(),
+            linkAnfrage: e.linkAnfrage.trim(),
+            fehlerhaftesVerhalten: e.fehlerhaftesVerhalten.trim(),
+            erwartesVerhalten: e.erwartesVerhalten.trim(),
+            screenshots: {
+              create: e.screenshots.map((s) => ({
+                filename: s.filename.replace(/[^\w.\- ]/g, "_").slice(0, 120),
+                mimeType: s.mimeType,
+                data: s.data,
+              })),
+            },
+          })),
+        },
       },
-    },
-  });
+    });
+  } catch (err) {
+    console.error("submitSupportRequest failed:", err);
+    return { ok: false, error: "Die Anfrage konnte nicht gespeichert werden. Bitte versuchen Sie es später erneut." };
+  }
 
   const { sendSupportConfirmationEmail, sendSupportInternalNotificationEmail } = await import("@/lib/email");
 
@@ -110,14 +119,14 @@ export async function submitSupportRequest(
     entries,
   }).catch(() => {});
 
-  if (contact.email) {
-    await sendSupportConfirmationEmail({
-      to: contact.email,
-      contactName: contact.kontaktperson,
-      praxisKunde: contact.praxisKunde,
-      entries,
-    }).catch(() => {});
-  }
+  const confirmationSent = await sendSupportConfirmationEmail({
+    to: contact.email,
+    contactName: contact.kontaktperson,
+    praxisKunde: contact.praxisKunde,
+    entries,
+  }).then(() => true, () => false);
+
+  return { ok: true, confirmationSent };
 }
 
 export async function updateChangeRequestStatus(id: string, status: string) {
