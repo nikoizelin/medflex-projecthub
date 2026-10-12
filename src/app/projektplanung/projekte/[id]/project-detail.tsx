@@ -40,7 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { PALETTE, PHASE_NAMES, getActivePhaseIndex } from "@/lib/schedule";
+import { PALETTE, PHASE_NAMES, PHASE_TRIGGER_ORDERS, getActivePhaseIndex } from "@/lib/schedule";
 import {
   calculateProject,
   toggleChecklistItem,
@@ -223,14 +223,18 @@ function SortableChecklistItem({
           {item.label}
         </span>
       </label>
-      <button
-        type="button"
-        onClick={() => onDelete(item.id)}
-        className="text-muted-foreground/40 opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
-        aria-label="Punkt entfernen"
-      >
-        <X className="size-4" />
-      </button>
+      {PHASE_TRIGGER_ORDERS.includes(item.order) ? (
+        <span className="size-4" aria-hidden />
+      ) : (
+        <button
+          type="button"
+          onClick={() => onDelete(item.id)}
+          className="text-muted-foreground/40 opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+          aria-label="Punkt entfernen"
+        >
+          <X className="size-4" />
+        </button>
+      )}
     </div>
   );
 }

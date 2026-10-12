@@ -8,6 +8,7 @@ import {
   PALETTE,
   baseChecklist,
   categoryForOrder,
+  PHASE_TRIGGER_ORDERS,
   calculateSchedule,
   computeDeadline,
 } from "@/lib/schedule";
@@ -203,7 +204,10 @@ export async function toggleChecklistItem(
 }
 
 export async function deleteChecklistItem(itemId: string, projectId: string) {
-  await prisma.checklistItem.deleteMany({ where: { id: itemId, projectId } });
+  // Punkte, die eine Phase auslösen, dürfen nicht gelöscht werden
+  await prisma.checklistItem.deleteMany({
+    where: { id: itemId, projectId, order: { notIn: PHASE_TRIGGER_ORDERS.filter((o): o is number => o !== null) } },
+  });
 
   await syncProjectStatusToChecklist(projectId);
 
