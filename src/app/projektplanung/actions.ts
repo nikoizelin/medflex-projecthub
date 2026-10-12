@@ -202,6 +202,15 @@ export async function toggleChecklistItem(
   revalidatePath(`/projektplanung/projekte/${projectId}`);
 }
 
+export async function deleteChecklistItem(itemId: string, projectId: string) {
+  await prisma.checklistItem.deleteMany({ where: { id: itemId, projectId } });
+
+  await syncProjectStatusToChecklist(projectId);
+
+  revalidatePath("/projektplanung/uebersicht");
+  revalidatePath(`/projektplanung/projekte/${projectId}`);
+}
+
 export async function addChecklistItem(projectId: string, label: string, category: string) {
   const trimmed = label.trim();
   if (!trimmed) return;

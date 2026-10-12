@@ -44,6 +44,7 @@ import { PALETTE, PHASE_NAMES, getActivePhaseIndex } from "@/lib/schedule";
 import {
   calculateProject,
   toggleChecklistItem,
+  deleteChecklistItem,
   addChecklistItem,
   updateProject,
   reorderChecklistItems,
@@ -186,9 +187,11 @@ const catOf = (c: ChecklistItem) =>
 function SortableChecklistItem({
   item,
   onToggle,
+  onDelete,
 }: {
   item: ChecklistItem;
   onToggle: (id: string, checked: boolean) => void;
+  onDelete: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -201,7 +204,7 @@ function SortableChecklistItem({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-2">
+    <div ref={setNodeRef} style={style} className="group flex items-center gap-2">
       <button
         type="button"
         {...attributes}
@@ -220,6 +223,14 @@ function SortableChecklistItem({
           {item.label}
         </span>
       </label>
+      <button
+        type="button"
+        onClick={() => onDelete(item.id)}
+        className="text-muted-foreground/40 opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+        aria-label="Punkt entfernen"
+      >
+        <X className="size-4" />
+      </button>
     </div>
   );
 }
@@ -289,11 +300,13 @@ export function ProjectDetail({
       action:
         | { type: "toggle"; id: string; checked: boolean }
         | { type: "add"; item: ChecklistItem }
+        | { type: "delete"; id: string }
         | { type: "reorder"; items: ChecklistItem[] }
     ) => {
       if (action.type === "toggle")
         return state.map((c) => (c.id === action.id ? { ...c, checked: action.checked } : c));
       if (action.type === "add") return [...state, action.item];
+      if (action.type === "delete") return state.filter((c) => c.id !== action.id);
       if (action.type === "reorder") return action.items;
       return state;
     }
@@ -793,6 +806,12 @@ export function ProjectDetail({
                                     await toggleChecklistItem(id, project.id, checked);
                                   });
                                 }}
+                                onDelete={(id) => {
+                                  startTransition(async () => {
+                                    applyOptimisticChecklist({ type: "delete", id });
+                                    if (!id.startsWith("temp-")) await deleteChecklistItem(id, project.id);
+                                  });
+                                }}
                               />
                             ))}
                           </div>
@@ -861,7 +880,7 @@ export function ProjectDetail({
             )}
             {savedAgentId && (
               <a
-                href={`https://eu.residency.elevenlabs.io/app/agents/agents/${encodeURIComponent(savedAgentId)}/tests`}
+                href={`https://eu.residency.elevenlabs.io/app/agents/agents/${encodeURIComponent(savedAgentId)}/tests/runs`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline"
